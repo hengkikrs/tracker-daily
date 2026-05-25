@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Miaw Tracker - Analitik Kebiasaan</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="cat-logo.svg" />
+</head>
+<body>
+  <div id="overlay" class="overlay" aria-hidden="true"></div>
+
+  <aside id="sidebar" class="sidebar" aria-label="Navigasi utama">
+    <div class="brand">
+      <img class="brand-mark" src="cat-logo.svg" alt="" aria-hidden="true" />
+      <div class="brand-copy">
+        <h1>Miaw Tracker</h1>
+        <p>Jejak harian, mingguan, dan bulanan</p>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" type="button" data-view="dashboard">
+        <span class="nav-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="8"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="15" width="7" height="6"/></svg>
+        </span>
+        <span>Dasbor</span>
+      </button>
+
+      <div class="nav-block">
+        <label class="nav-label" for="yearSelect">Tahun pelacakan</label>
+        <select id="yearSelect" class="year-select" aria-label="Tahun pelacakan"></select>
+      </div>
+
+      <div class="nav-block">
+        <div class="nav-label">Tab bulanan</div>
+        <div id="monthList" class="month-list" role="list"></div>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <p>Tetap miaw-langkah maju.</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button id="menuBtn" class="icon-button mobile-only" type="button" aria-label="Buka navigasi">
+        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+
+      <div class="title-group">
+        <h2 id="pageTitle">Dasbor</h2>
+        <p id="pageSubtitle">Ringkasan kebiasaan tahunan</p>
+      </div>
+
+      <button id="themeToggle" class="icon-button" type="button" aria-label="Ganti tema warna" title="Ganti tema warna">
+        <svg class="sun-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="moon-icon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+      </button>
+    </header>
+
+    <section id="content" class="content" aria-live="polite"></section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="runtime-config.js?v=20260525"></script>
+  <script src="app.js"></script>
+</body>
+</html>

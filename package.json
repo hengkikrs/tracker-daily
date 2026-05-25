@@ -1,0 +1,14 @@
+{
+  "name": "daily-tracker",
+  "version": "1.0.0",
+  "description": "Pelacak kebiasaan responsif dengan analitik harian, mingguan, dan bulanan",
+  "main": "server.js",
+  "scripts": {
+    "build": "node scripts/write-config.js",
+    "vercel:prebuild": "node scripts/build-vercel-static.js",
+    "vercel:env": "node scripts/sync-vercel-env.js",
+    "start": "node server.js"
+  },
+  "author": "",
+  "license": "MIT"
+}
