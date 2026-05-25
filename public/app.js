@@ -5,7 +5,7 @@
   const THEME_KEY = 'miaw-tracker.theme';
   const CLIENT_ID_KEY = 'miaw-tracker.client-id';
   const SCHEMA_VERSION = 1;
-  const REMOTE_SYNC_DEBOUNCE_MS = 650;
+  const REMOTE_SYNC_DEBOUNCE_MS = 150;
 
   const MONTHS = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -133,6 +133,9 @@
   let syncTimer = null;
   let remoteHydrated = false;
   let isApplyingRemoteState = false;
+  let remoteSaveInFlight = false;
+  let remoteSaveQueued = false;
+  let remoteSaveRevision = 0;
 
   function uid(prefix = 'h') {
     return `${prefix}_${Math.random().toString(36).slice(2, 8)}_${Date.now().toString(36)}`;
@@ -262,6 +265,11 @@
     queueRemoteSave();
   }
 
+  function cloneStateSnapshot() {
+    if (typeof structuredClone === 'function') return structuredClone(state);
+    return JSON.parse(JSON.stringify(state));
+  }
+
   async function supabaseFetch(path, options = {}) {
     if (!remoteEnabled) return null;
 
@@ -309,7 +317,7 @@
         return;
       }
 
-      await saveRemoteState();
+      await saveRemoteState(cloneStateSnapshot());
       showToast('Data lokal disinkronkan ke Supabase.');
     } catch (error) {
       isApplyingRemoteState = false;
@@ -318,27 +326,47 @@
     }
   }
 
-  function queueRemoteSave() {
+  function queueRemoteSave(options = {}) {
     if (!remoteEnabled || !remoteHydrated || isApplyingRemoteState) return;
+    remoteSaveQueued = true;
+    remoteSaveRevision += 1;
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => {
-      saveRemoteState().catch((error) => {
-        console.warn(error);
-        showToast('Data lokal tersimpan. Sinkron Supabase gagal sementara.');
-      });
-    }, REMOTE_SYNC_DEBOUNCE_MS);
+    syncTimer = setTimeout(() => flushRemoteSave(options), options.immediate ? 0 : REMOTE_SYNC_DEBOUNCE_MS);
   }
 
-  async function saveRemoteState() {
+  async function flushRemoteSave(options = {}) {
+    if (!remoteEnabled || !remoteSaveQueued || remoteSaveInFlight) return;
+
+    remoteSaveQueued = false;
+    remoteSaveInFlight = true;
+    const revision = remoteSaveRevision;
+    const snapshot = cloneStateSnapshot();
+
+    try {
+      await saveRemoteState(snapshot, options);
+    } catch (error) {
+      console.warn(error);
+      showToast('Data lokal tersimpan. Sinkron Supabase gagal sementara.');
+    } finally {
+      remoteSaveInFlight = false;
+      if (remoteSaveQueued || remoteSaveRevision > revision) {
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => flushRemoteSave(options), 0);
+      }
+    }
+  }
+
+  async function saveRemoteState(snapshot = state, options = {}) {
     if (!remoteEnabled) return;
 
     const payload = {
       client_id: getRemoteClientId(),
-      state,
+      state: snapshot,
     };
 
     await supabaseFetch(`/rest/v1/${encodeURIComponent(supabaseConfig.table)}?on_conflict=client_id`, {
       method: 'POST',
+      keepalive: Boolean(options.keepalive),
       headers: {
         Prefer: 'resolution=merge-duplicates',
       },
@@ -1230,6 +1258,14 @@
       const input = event.target.closest('[data-action="toggle-slot"]');
       if (!input) return;
       toggleSlot(input);
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') queueRemoteSave({ immediate: true, keepalive: true });
+    });
+
+    window.addEventListener('pagehide', () => {
+      queueRemoteSave({ immediate: true, keepalive: true });
     });
   }
 
