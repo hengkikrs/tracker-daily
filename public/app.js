@@ -270,6 +270,20 @@
     return JSON.parse(JSON.stringify(state));
   }
 
+  function isValidRemoteState(value) {
+    return Boolean(
+      value
+      && typeof value === 'object'
+      && value.schemaVersion === SCHEMA_VERSION
+      && value.years
+      && typeof value.years === 'object',
+    );
+  }
+
+  function hasYearData(value) {
+    return Boolean(value?.years && Object.keys(value.years).length);
+  }
+
   async function supabaseFetch(path, options = {}) {
     if (!remoteEnabled) return null;
 
@@ -291,7 +305,11 @@
     }
 
     if (response.status === 204) return null;
-    return response.json();
+
+    const text = await response.text();
+    if (!text.trim()) return null;
+
+    return JSON.parse(text);
   }
 
   async function hydrateRemoteState() {
@@ -303,9 +321,10 @@
 
     try {
       const rows = await supabaseFetch(path, { method: 'GET' });
-      if (Array.isArray(rows) && rows[0]?.state?.schemaVersion === SCHEMA_VERSION) {
+      const remoteState = rows?.[0]?.state;
+      if (isValidRemoteState(remoteState) && (hasYearData(remoteState) || !hasYearData(state))) {
         isApplyingRemoteState = true;
-        state = rows[0].state;
+        state = remoteState;
         activeYear = Number(state.selectedYear) || runtimeYear;
         activeView = state.selectedView || 'dashboard';
         activeMonth = Number.isInteger(state.selectedMonth) ? state.selectedMonth : new Date().getMonth();
@@ -368,7 +387,7 @@
       method: 'POST',
       keepalive: Boolean(options.keepalive),
       headers: {
-        Prefer: 'resolution=merge-duplicates',
+        Prefer: 'resolution=merge-duplicates,return=minimal',
       },
       body: JSON.stringify(payload),
     });
