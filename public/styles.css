@@ -67,6 +67,8 @@ html {
 
 body {
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
   margin: 0;
   overflow-x: hidden;
   background:
@@ -564,6 +566,7 @@ svg {
 
 .main {
   min-width: 0;
+  max-width: 100vw;
   margin-left: 292px;
 }
 
@@ -633,6 +636,7 @@ svg {
 
 .content {
   width: min(100%, 1500px);
+  max-width: 100vw;
   margin: 0 auto;
   padding: 24px 28px 42px;
 }
@@ -1817,6 +1821,7 @@ svg {
 
   .main {
     margin-left: 0;
+    width: 100%;
   }
 
   .mobile-only {
@@ -1825,7 +1830,7 @@ svg {
 
   .content {
     padding: 18px 16px 36px;
-    overflow-x: clip;
+    overflow-x: hidden;
   }
 
   .dashboard-sheet {
@@ -1854,6 +1859,8 @@ svg {
     min-height: 68px;
     padding: 10px 12px;
     gap: 8px;
+    width: 100%;
+    max-width: 100vw;
   }
 
   .title-group p {
@@ -1932,6 +1939,18 @@ svg {
   .metric-card p {
     font-size: 0.68rem;
     line-height: 1.25;
+  }
+
+  .dashboard-layout,
+  .month-layout {
+    gap: 12px;
+  }
+
+  .dashboard-sheet,
+  .panel,
+  .metric-card,
+  .category-card {
+    box-shadow: 0 8px 20px rgba(35, 52, 78, 0.07);
   }
 
   .tracker-section .section-heading {
@@ -2151,6 +2170,7 @@ svg {
   .summary-table td {
     padding: 9px 6px;
     font-size: 0.72rem;
+    overflow-wrap: anywhere;
   }
 
   .summary-table th {
@@ -2214,6 +2234,12 @@ svg {
 
   .mini-bar {
     height: 7px;
+  }
+
+  .chart-scroll,
+  .table-wrap,
+  .grid-scroller {
+    max-width: 100%;
   }
 
   .leader-list li {
