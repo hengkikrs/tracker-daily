@@ -1440,11 +1440,11 @@
     renderAuthScreen();
 
     try {
-      const result = await authFetch('/auth/v1/signup', {
+      await authFetch('/auth/v1/otp', {
         method: 'POST',
         body: JSON.stringify({
           email,
-          password,
+          create_user: true,
           data: {
             username: authPendingName,
             full_name: authPendingName,
@@ -1452,14 +1452,6 @@
           },
         }),
       });
-
-      if (result?.access_token) {
-        completeLogin(result);
-        await hydrateRemoteState();
-        renderShell();
-        showToast('Miaw-velous! Akun dibuat dan kamu sudah masuk.');
-        return;
-      }
 
       startOtpCountdown();
       showToast('OTP verifikasi dikirim. Cek email kamu.');
@@ -1479,11 +1471,16 @@
     renderAuthScreen();
 
     try {
-      await authFetch('/auth/v1/resend', {
+      await authFetch('/auth/v1/otp', {
         method: 'POST',
         body: JSON.stringify({
-          type: 'signup',
           email: authOtpEmail,
+          create_user: true,
+          data: {
+            username: authPendingName,
+            full_name: authPendingName,
+            display_name: authPendingName,
+          },
         }),
       });
       startOtpCountdown();
@@ -1511,9 +1508,21 @@
         body: JSON.stringify({
           email: authOtpEmail,
           token,
-          type: 'signup',
+          type: 'email',
         }),
       });
+
+      await authFetch('/auth/v1/user', {
+        method: 'PUT',
+        body: JSON.stringify({
+          password: authPendingPassword,
+          data: {
+            username: authPendingName,
+            full_name: authPendingName,
+            display_name: authPendingName,
+          },
+        }),
+      }, session.access_token);
 
       completeLogin(session);
       remoteHydrated = false;

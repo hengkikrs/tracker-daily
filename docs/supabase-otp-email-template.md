@@ -3,7 +3,8 @@
 Gunakan template ini di Supabase Dashboard:
 
 - Menu: Authentication > Email Templates
-- Template: Confirm signup
+- Template utama untuk app sekarang: Magic Link
+- Template tambahan yang sebaiknya disamakan: Confirm signup
 - Subject: `[Miaw-Tracker] Penting: Kode Verifikasi OTP Anda 🐾`
 
 ```html
@@ -34,4 +35,6 @@ Catatan:
 
 - `{{ .Token }}` wajib ada supaya kode OTP terlihat di email.
 - `{{ .Data.username }}` diisi dari field nama pengguna pada form daftar.
+- App sekarang mengirim OTP lewat endpoint Supabase `/auth/v1/otp`, sehingga template yang paling penting adalah `Magic Link`.
+- Kalau template masih berisi `{{ .ConfirmationURL }}` saja, email akan menampilkan link dan bukan angka OTP.
 - Jika email tetap tidak masuk, cek Authentication > Rate Limits dan SMTP provider di Supabase.
