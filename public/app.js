@@ -4,6 +4,7 @@
   const STORAGE_KEY = 'miaw-tracker.state.v1';
   const THEME_KEY = 'miaw-tracker.theme';
   const CLIENT_ID_KEY = 'miaw-tracker.client-id';
+  const AUTH_SESSION_KEY = 'miaw-tracker.auth-session.v1';
   const SCHEMA_VERSION = 1;
   const REMOTE_SYNC_DEBOUNCE_MS = 150;
 
@@ -111,6 +112,7 @@
     overlay: $('#overlay'),
     menuBtn: $('#menuBtn'),
     themeToggle: $('#themeToggle'),
+    authPanel: $('#authPanel'),
     toast: $('#toast'),
   };
 
@@ -136,13 +138,27 @@
   let remoteSaveInFlight = false;
   let remoteSaveQueued = false;
   let remoteSaveRevision = 0;
+  let authSession = loadAuthSession();
+  let authMode = 'login';
+  let authOtpEmail = '';
+  let authIsBusy = false;
 
   function uid(prefix = 'h') {
     return `${prefix}_${Math.random().toString(36).slice(2, 8)}_${Date.now().toString(36)}`;
   }
 
+  function createFreshState() {
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      selectedYear: runtimeYear,
+      selectedView: 'dashboard',
+      selectedMonth: new Date().getMonth(),
+      years: {},
+    };
+  }
+
   function getRemoteClientId() {
-    if (supabaseConfig.clientId) return supabaseConfig.clientId;
+    if (authSession?.user?.id) return authSession.user.id;
 
     let clientId = localStorage.getItem(CLIENT_ID_KEY);
     if (!clientId) {
@@ -151,6 +167,10 @@
     }
 
     return clientId;
+  }
+
+  function canSyncRemote() {
+    return Boolean(remoteEnabled && authSession?.access_token && authSession?.user?.id);
   }
 
   function escapeHtml(value) {
@@ -248,13 +268,7 @@
       // Fall back to a fresh state below.
     }
 
-    return {
-      schemaVersion: SCHEMA_VERSION,
-      selectedYear: runtimeYear,
-      selectedView: 'dashboard',
-      selectedMonth: new Date().getMonth(),
-      years: {},
-    };
+    return createFreshState();
   }
 
   function saveState() {
@@ -284,12 +298,97 @@
     return Boolean(value?.years && Object.keys(value.years).length);
   }
 
+  function loadAuthSession() {
+    try {
+      const session = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY));
+      if (session?.access_token && session?.refresh_token && session?.user?.id) return session;
+    } catch {
+      // Ignore invalid saved auth data.
+    }
+    return null;
+  }
+
+  function saveAuthSession(session) {
+    authSession = {
+      ...session,
+      expires_at: session.expires_at || Math.floor(Date.now() / 1000) + Number(session.expires_in || 3600),
+    };
+    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(authSession));
+    renderAuthPanel();
+  }
+
+  function clearAuthSession() {
+    authSession = null;
+    remoteHydrated = false;
+    remoteSaveQueued = false;
+    localStorage.removeItem(AUTH_SESSION_KEY);
+    renderAuthPanel();
+  }
+
+  function authEmail() {
+    return authSession?.user?.email || 'Akun tersambung';
+  }
+
+  async function authFetch(path, options = {}, token = supabaseConfig.key) {
+    if (!remoteEnabled) throw new Error('Konfigurasi Supabase belum tersedia.');
+
+    const response = await fetch(`${supabaseConfig.url}${path}`, {
+      ...options,
+      headers: {
+        apikey: supabaseConfig.key,
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    const text = await response.text();
+    const data = text.trim() ? JSON.parse(text) : null;
+
+    if (!response.ok) {
+      throw new Error(data?.msg || data?.message || data?.error_description || data?.error || response.statusText);
+    }
+
+    return data;
+  }
+
+  async function refreshAuthSession() {
+    if (!authSession?.refresh_token) return null;
+
+    try {
+      const session = await authFetch('/auth/v1/token?grant_type=refresh_token', {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: authSession.refresh_token }),
+      });
+      if (session?.access_token) {
+        saveAuthSession(session);
+        return authSession;
+      }
+    } catch (error) {
+      console.warn(error);
+      clearAuthSession();
+    }
+
+    return null;
+  }
+
+  async function getAccessToken() {
+    if (!authSession?.access_token) return null;
+    const expiresAt = Number(authSession.expires_at || 0);
+    if (expiresAt && expiresAt - Math.floor(Date.now() / 1000) < 60) {
+      await refreshAuthSession();
+    }
+    return authSession?.access_token || null;
+  }
+
   async function supabaseFetch(path, options = {}) {
-    if (!remoteEnabled) return null;
+    if (!canSyncRemote()) return null;
+    const accessToken = await getAccessToken();
+    if (!accessToken) return null;
 
     const headers = {
       apikey: supabaseConfig.key,
-      Authorization: `Bearer ${supabaseConfig.key}`,
+      Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
       ...options.headers,
     };
@@ -313,7 +412,7 @@
   }
 
   async function hydrateRemoteState() {
-    if (!remoteEnabled || remoteHydrated) return;
+    if (!canSyncRemote() || remoteHydrated) return;
     remoteHydrated = true;
 
     const clientId = encodeURIComponent(getRemoteClientId());
@@ -346,7 +445,7 @@
   }
 
   function queueRemoteSave(options = {}) {
-    if (!remoteEnabled || !remoteHydrated || isApplyingRemoteState) return;
+    if (!canSyncRemote() || !remoteHydrated || isApplyingRemoteState) return;
     remoteSaveQueued = true;
     remoteSaveRevision += 1;
     clearTimeout(syncTimer);
@@ -376,10 +475,11 @@
   }
 
   async function saveRemoteState(snapshot = state, options = {}) {
-    if (!remoteEnabled) return;
+    if (!canSyncRemote()) return;
 
     const payload = {
       client_id: getRemoteClientId(),
+      user_id: authSession.user.id,
       state: snapshot,
     };
 
@@ -581,9 +681,71 @@
     }).join('');
   }
 
+  function renderAuthPanel() {
+    if (!dom.authPanel) return;
+
+    if (!remoteEnabled) {
+      dom.authPanel.innerHTML = `
+        <div class="auth-card">
+          <strong>Mode lokal</strong>
+          <p>Konfigurasi Supabase belum tersedia.</p>
+        </div>
+      `;
+      return;
+    }
+
+    if (authSession?.user?.id) {
+      dom.authPanel.innerHTML = `
+        <div class="auth-card signed-in">
+          <span class="auth-kicker">Akun aktif</span>
+          <strong title="${escapeHtml(authEmail())}">${escapeHtml(authEmail())}</strong>
+          <p>Data tersinkron per akun.</p>
+          <button class="auth-button secondary" type="button" data-auth-action="logout" ${authIsBusy ? 'disabled' : ''}>
+            Keluar
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    const isSignup = authMode === 'signup';
+    const title = isSignup ? 'Daftar akun' : 'Masuk akun';
+    const buttonText = isSignup ? 'Kirim OTP daftar' : 'Kirim OTP masuk';
+    const helperText = isSignup
+      ? 'Belum punya akun? OTP akan dikirim ke email kamu.'
+      : 'Sudah punya akun? Masuk dengan kode OTP email.';
+
+    dom.authPanel.innerHTML = `
+      <div class="auth-card">
+        <span class="auth-kicker">Sinkron akun</span>
+        <strong>${title}</strong>
+        <p>${helperText}</p>
+
+        <form id="authEmailForm" class="auth-form">
+          <label for="authEmail">Email</label>
+          <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="nama@email.com" value="${escapeHtml(authOtpEmail)}" required />
+          <button class="auth-button" type="submit" ${authIsBusy ? 'disabled' : ''}>${buttonText}</button>
+        </form>
+
+        ${authOtpEmail ? `
+          <form id="authOtpForm" class="auth-form otp-form">
+            <label for="authOtp">Kode OTP</label>
+            <input id="authOtp" name="token" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 digit" maxlength="8" required />
+            <button class="auth-button" type="submit" ${authIsBusy ? 'disabled' : ''}>Verifikasi OTP</button>
+          </form>
+        ` : ''}
+
+        <button class="auth-link" type="button" data-auth-action="switch-mode">
+          ${isSignup ? 'Sudah punya akun? Masuk' : 'Belum ada akun? Daftar'}
+        </button>
+      </div>
+    `;
+  }
+
   function renderShell() {
     renderYearOptions();
     renderMonthList();
+    renderAuthPanel();
 
     document.querySelectorAll('[data-view="dashboard"]').forEach((button) => {
       button.classList.toggle('active', activeView === 'dashboard');
@@ -1127,6 +1289,96 @@
     showToast(input.checked ? 'Miaw-keren! Slot dicentang.' : 'Miaw-tenang. Slot batal dicentang.');
   }
 
+  async function requestAuthOtp(form) {
+    const data = new FormData(form);
+    const email = String(data.get('email') || '').trim().toLowerCase();
+    if (!email) return;
+
+    authIsBusy = true;
+    authOtpEmail = email;
+    renderAuthPanel();
+
+    try {
+      await authFetch('/auth/v1/otp', {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          create_user: authMode === 'signup',
+        }),
+      });
+      showToast(authMode === 'signup'
+        ? 'OTP daftar dikirim. Cek email kamu.'
+        : 'OTP masuk dikirim. Cek email kamu.');
+    } catch (error) {
+      console.warn(error);
+      showToast(authMode === 'signup'
+        ? 'Gagal kirim OTP daftar. Coba lagi nanti.'
+        : 'Akun belum ada atau OTP gagal dikirim.');
+    } finally {
+      authIsBusy = false;
+      renderAuthPanel();
+    }
+  }
+
+  async function verifyAuthOtp(form) {
+    const data = new FormData(form);
+    const token = String(data.get('token') || '').trim();
+    if (!authOtpEmail || !token) return;
+
+    authIsBusy = true;
+    renderAuthPanel();
+
+    try {
+      const session = await authFetch('/auth/v1/verify', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: authOtpEmail,
+          token,
+          type: 'email',
+        }),
+      });
+
+      if (!session?.access_token) throw new Error('Sesi OTP tidak diterima.');
+
+      saveAuthSession(session);
+      authOtpEmail = '';
+      remoteHydrated = false;
+      await hydrateRemoteState();
+      renderShell();
+      showToast('Miaw-velous! Kamu sudah masuk.');
+    } catch (error) {
+      console.warn(error);
+      showToast('Kode OTP tidak valid atau sudah kedaluwarsa.');
+    } finally {
+      authIsBusy = false;
+      renderAuthPanel();
+    }
+  }
+
+  async function logoutAuth() {
+    authIsBusy = true;
+    renderAuthPanel();
+
+    try {
+      const token = authSession?.access_token;
+      if (token) await authFetch('/auth/v1/logout', { method: 'POST' }, token);
+    } catch (error) {
+      console.warn(error);
+    }
+
+    clearAuthSession();
+    localStorage.removeItem(STORAGE_KEY);
+    state = createFreshState();
+    activeYear = runtimeYear;
+    activeView = 'dashboard';
+    activeMonth = new Date().getMonth();
+    ensureYear(activeYear);
+    saveState();
+    renderShell();
+    authIsBusy = false;
+    showToast('Kamu sudah keluar. Mode lokal aktif.');
+  }
+
   function renameHabit(categoryKey, habitId) {
     const habit = findHabit(categoryKey, habitId);
     if (!habit) return;
@@ -1220,6 +1472,25 @@
       closeSidebar();
     });
 
+    dom.authPanel.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (event.target.id === 'authEmailForm') requestAuthOtp(event.target);
+      if (event.target.id === 'authOtpForm') verifyAuthOtp(event.target);
+    });
+
+    dom.authPanel.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-auth-action]');
+      if (!button) return;
+
+      if (button.dataset.authAction === 'switch-mode') {
+        authMode = authMode === 'login' ? 'signup' : 'login';
+        authOtpEmail = '';
+        renderAuthPanel();
+      }
+
+      if (button.dataset.authAction === 'logout') logoutAuth();
+    });
+
     document.addEventListener('click', (event) => {
       const dashboardButton = event.target.closest('[data-view="dashboard"]');
       if (dashboardButton) {
@@ -1288,13 +1559,14 @@
     });
   }
 
-  function init() {
+  async function init() {
     initTheme();
+    if (authSession) await getAccessToken();
     ensureYear(activeYear);
     saveState();
     bindEvents();
     renderShell();
-    hydrateRemoteState();
+    await hydrateRemoteState();
   }
 
   init();

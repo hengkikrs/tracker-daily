@@ -259,7 +259,120 @@ svg {
   gap: 4px;
   overflow: auto;
   padding-right: 2px;
-  max-height: calc(100vh - 310px);
+  max-height: clamp(120px, calc(100vh - 500px), 340px);
+}
+
+.auth-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.auth-card {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(94, 234, 212, 0.12), transparent 60%),
+    rgba(255, 255, 255, 0.05);
+  color: rgba(237, 247, 246, 0.78);
+  font-size: 0.82rem;
+}
+
+.auth-card strong {
+  overflow: hidden;
+  color: var(--sidebar-text);
+  font-size: 0.92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-card p {
+  margin: 0;
+  color: rgba(237, 247, 246, 0.66);
+}
+
+.auth-kicker {
+  color: #5eead4;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-form {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-form label {
+  color: rgba(237, 247, 246, 0.68);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius);
+  background: rgba(8, 16, 23, 0.44);
+  color: var(--sidebar-text);
+  outline: none;
+}
+
+.auth-form input::placeholder {
+  color: rgba(237, 247, 246, 0.42);
+}
+
+.auth-form input:focus {
+  border-color: rgba(94, 234, 212, 0.58);
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.16);
+}
+
+.otp-form {
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-button,
+.auth-link {
+  min-height: 36px;
+  border-radius: var(--radius);
+  font-weight: 900;
+}
+
+.auth-button {
+  border: 1px solid rgba(94, 234, 212, 0.35);
+  background: linear-gradient(135deg, #14b8a6, #2563eb);
+  color: #ffffff;
+}
+
+.auth-button.secondary {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--sidebar-text);
+}
+
+.auth-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.auth-link {
+  border: 0;
+  background: transparent;
+  color: #fcd34d;
+  text-align: left;
+  padding: 0;
+}
+
+.auth-card.signed-in {
+  background:
+    linear-gradient(135deg, rgba(252, 211, 77, 0.13), transparent 58%),
+    rgba(255, 255, 255, 0.05);
 }
 
 .sidebar-footer {
