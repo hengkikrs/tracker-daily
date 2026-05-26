@@ -7,10 +7,12 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" href="cat-logo.svg" />
 </head>
-<body>
+<body class="auth-required">
   <div id="overlay" class="overlay" aria-hidden="true"></div>
 
-  <aside id="sidebar" class="sidebar" aria-label="Navigasi utama">
+  <section id="authScreen" class="auth-screen" aria-live="polite"></section>
+
+  <aside id="sidebar" class="sidebar app-shell" aria-label="Navigasi utama">
     <div class="brand">
       <img class="brand-mark" src="cat-logo.svg" alt="" aria-hidden="true" />
       <div class="brand-copy">
@@ -45,7 +47,7 @@
     </div>
   </aside>
 
-  <main class="main">
+  <main class="main app-shell">
     <header class="topbar">
       <button id="menuBtn" class="icon-button mobile-only" type="button" aria-label="Buka navigasi">
         <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>

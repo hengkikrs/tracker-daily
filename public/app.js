@@ -113,6 +113,7 @@
     menuBtn: $('#menuBtn'),
     themeToggle: $('#themeToggle'),
     authPanel: $('#authPanel'),
+    authScreen: $('#authScreen'),
     toast: $('#toast'),
   };
 
@@ -141,6 +142,7 @@
   let authSession = loadAuthSession();
   let authMode = 'login';
   let authOtpEmail = '';
+  let authPendingPassword = '';
   let authIsBusy = false;
 
   function uid(prefix = 'h') {
@@ -171,6 +173,10 @@
 
   function canSyncRemote() {
     return Boolean(remoteEnabled && authSession?.access_token && authSession?.user?.id);
+  }
+
+  function isLoggedIn() {
+    return Boolean(authSession?.access_token && authSession?.user?.id);
   }
 
   function escapeHtml(value) {
@@ -314,6 +320,8 @@
       expires_at: session.expires_at || Math.floor(Date.now() / 1000) + Number(session.expires_in || 3600),
     };
     localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(authSession));
+    document.body.classList.remove('auth-required');
+    if (dom.authScreen) dom.authScreen.innerHTML = '';
     renderAuthPanel();
   }
 
@@ -327,6 +335,15 @@
 
   function authEmail() {
     return authSession?.user?.email || 'Akun tersambung';
+  }
+
+  function completeLogin(session) {
+    if (!session?.access_token) throw new Error('Sesi login tidak diterima.');
+    saveAuthSession(session);
+    authOtpEmail = '';
+    authPendingPassword = '';
+    authIsBusy = false;
+    remoteHydrated = false;
   }
 
   async function authFetch(path, options = {}, token = supabaseConfig.key) {
@@ -681,8 +698,74 @@
     }).join('');
   }
 
+  function renderAuthScreen() {
+    if (!dom.authScreen) return;
+
+    document.body.classList.add('auth-required');
+
+    const isSignup = authMode === 'signup';
+    const isVerify = isSignup && authOtpEmail;
+    const title = isVerify ? 'Verifikasi email' : (isSignup ? 'Daftar akun' : 'Masuk ke Miaw Tracker');
+    const subtitle = isVerify
+      ? `Masukkan kode OTP yang dikirim ke ${authOtpEmail}.`
+      : (isSignup
+        ? 'Buat akun dengan email dan password, lalu verifikasi OTP dari email.'
+        : 'Masukkan email dan password untuk membuka tracker pribadi kamu.');
+
+    dom.authScreen.innerHTML = `
+      <div class="auth-hero">
+        <div class="auth-brand">
+          <img src="cat-logo.svg" alt="" aria-hidden="true" />
+          <div>
+            <span>Miaw Tracker</span>
+            <strong>Pelacak kebiasaan pribadi</strong>
+          </div>
+        </div>
+
+        <div class="auth-copy">
+          <h1>${title}</h1>
+          <p>${subtitle}</p>
+        </div>
+
+        ${isVerify ? `
+          <form id="authOtpForm" class="auth-page-form">
+            <label for="authOtp">Kode OTP</label>
+            <input id="authOtp" name="token" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 digit dari email" maxlength="8" required />
+            <button class="auth-primary" type="submit" ${authIsBusy ? 'disabled' : ''}>
+              ${authIsBusy ? 'Memverifikasi...' : 'Verifikasi dan masuk'}
+            </button>
+          </form>
+          <div class="auth-row-actions">
+            <button class="auth-text-button" type="button" data-auth-action="back-to-signup">Ganti email</button>
+            <button class="auth-text-button" type="button" data-auth-action="resend-signup">Kirim ulang OTP</button>
+          </div>
+        ` : `
+          <form id="${isSignup ? 'authSignupForm' : 'authLoginForm'}" class="auth-page-form">
+            <label for="authEmail">Email</label>
+            <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="nama@email.com" value="${escapeHtml(authOtpEmail)}" required />
+
+            <label for="authPassword">Password</label>
+            <input id="authPassword" name="password" type="password" autocomplete="${isSignup ? 'new-password' : 'current-password'}" placeholder="Minimal 6 karakter" minlength="6" required />
+
+            <button class="auth-primary" type="submit" ${authIsBusy ? 'disabled' : ''}>
+              ${authIsBusy ? 'Memproses...' : (isSignup ? 'Daftar dan kirim OTP' : 'Masuk')}
+            </button>
+          </form>
+          <button class="auth-switch" type="button" data-auth-action="switch-mode">
+            ${isSignup ? 'Sudah punya akun? Masuk' : 'Belum punya akun? Daftar'}
+          </button>
+        `}
+      </div>
+    `;
+  }
+
   function renderAuthPanel() {
     if (!dom.authPanel) return;
+
+    if (!isLoggedIn()) {
+      dom.authPanel.innerHTML = '';
+      return;
+    }
 
     if (!remoteEnabled) {
       dom.authPanel.innerHTML = `
@@ -694,55 +777,31 @@
       return;
     }
 
-    if (authSession?.user?.id) {
-      dom.authPanel.innerHTML = `
-        <div class="auth-card signed-in">
-          <span class="auth-kicker">Akun aktif</span>
-          <strong title="${escapeHtml(authEmail())}">${escapeHtml(authEmail())}</strong>
-          <p>Data tersinkron per akun.</p>
-          <button class="auth-button secondary" type="button" data-auth-action="logout" ${authIsBusy ? 'disabled' : ''}>
-            Keluar
-          </button>
-        </div>
-      `;
-      return;
-    }
-
-    const isSignup = authMode === 'signup';
-    const title = isSignup ? 'Daftar akun' : 'Masuk akun';
-    const buttonText = isSignup ? 'Kirim OTP daftar' : 'Kirim OTP masuk';
-    const helperText = isSignup
-      ? 'Belum punya akun? OTP akan dikirim ke email kamu.'
-      : 'Sudah punya akun? Masuk dengan kode OTP email.';
-
     dom.authPanel.innerHTML = `
-      <div class="auth-card">
-        <span class="auth-kicker">Sinkron akun</span>
-        <strong>${title}</strong>
-        <p>${helperText}</p>
-
-        <form id="authEmailForm" class="auth-form">
-          <label for="authEmail">Email</label>
-          <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="nama@email.com" value="${escapeHtml(authOtpEmail)}" required />
-          <button class="auth-button" type="submit" ${authIsBusy ? 'disabled' : ''}>${buttonText}</button>
-        </form>
-
-        ${authOtpEmail ? `
-          <form id="authOtpForm" class="auth-form otp-form">
-            <label for="authOtp">Kode OTP</label>
-            <input id="authOtp" name="token" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 digit" maxlength="8" required />
-            <button class="auth-button" type="submit" ${authIsBusy ? 'disabled' : ''}>Verifikasi OTP</button>
-          </form>
-        ` : ''}
-
-        <button class="auth-link" type="button" data-auth-action="switch-mode">
-          ${isSignup ? 'Sudah punya akun? Masuk' : 'Belum ada akun? Daftar'}
+      <div class="auth-card signed-in">
+        <span class="auth-kicker">Akun aktif</span>
+        <strong title="${escapeHtml(authEmail())}">${escapeHtml(authEmail())}</strong>
+        <p>Data tersinkron per akun.</p>
+        <button class="auth-button secondary" type="button" data-auth-action="logout" ${authIsBusy ? 'disabled' : ''}>
+          Keluar
         </button>
       </div>
     `;
   }
 
   function renderShell() {
+    if (!isLoggedIn()) {
+      dom.content.innerHTML = '';
+      dom.pageTitle.textContent = 'Masuk';
+      dom.pageSubtitle.textContent = 'Login diperlukan untuk membuka tracker';
+      renderAuthPanel();
+      renderAuthScreen();
+      return;
+    }
+
+    document.body.classList.remove('auth-required');
+    if (dom.authScreen) dom.authScreen.innerHTML = '';
+
     renderYearOptions();
     renderMonthList();
     renderAuthPanel();
@@ -1289,34 +1348,99 @@
     showToast(input.checked ? 'Miaw-keren! Slot dicentang.' : 'Miaw-tenang. Slot batal dicentang.');
   }
 
-  async function requestAuthOtp(form) {
+  async function loginWithPassword(form) {
     const data = new FormData(form);
     const email = String(data.get('email') || '').trim().toLowerCase();
-    if (!email) return;
+    const password = String(data.get('password') || '');
+    if (!email || !password) return;
 
     authIsBusy = true;
-    authOtpEmail = email;
-    renderAuthPanel();
+    renderAuthScreen();
 
     try {
-      await authFetch('/auth/v1/otp', {
+      const session = await authFetch('/auth/v1/token?grant_type=password', {
         method: 'POST',
         body: JSON.stringify({
           email,
-          create_user: authMode === 'signup',
+          password,
         }),
       });
-      showToast(authMode === 'signup'
-        ? 'OTP daftar dikirim. Cek email kamu.'
-        : 'OTP masuk dikirim. Cek email kamu.');
+
+      completeLogin(session);
+      await hydrateRemoteState();
+      renderShell();
+      showToast('Miaw-velous! Kamu sudah masuk.');
     } catch (error) {
       console.warn(error);
-      showToast(authMode === 'signup'
-        ? 'Gagal kirim OTP daftar. Coba lagi nanti.'
-        : 'Akun belum ada atau OTP gagal dikirim.');
+      showToast('Email atau password salah, atau akun belum diverifikasi.');
     } finally {
       authIsBusy = false;
-      renderAuthPanel();
+      if (!isLoggedIn()) renderAuthScreen();
+    }
+  }
+
+  async function signupWithPassword(form) {
+    const data = new FormData(form);
+    const email = String(data.get('email') || '').trim().toLowerCase();
+    const password = String(data.get('password') || '');
+    if (!email || password.length < 6) {
+      showToast('Password minimal 6 karakter.');
+      return;
+    }
+
+    authIsBusy = true;
+    authOtpEmail = email;
+    authPendingPassword = password;
+    renderAuthScreen();
+
+    try {
+      const result = await authFetch('/auth/v1/signup', {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      if (result?.access_token) {
+        completeLogin(result);
+        await hydrateRemoteState();
+        renderShell();
+        showToast('Miaw-velous! Akun dibuat dan kamu sudah masuk.');
+        return;
+      }
+
+      showToast('OTP verifikasi dikirim. Cek email kamu.');
+    } catch (error) {
+      console.warn(error);
+      showToast('Gagal daftar. Email mungkin sudah terdaftar atau rate limit OTP aktif.');
+    } finally {
+      authIsBusy = false;
+      if (!isLoggedIn()) renderAuthScreen();
+    }
+  }
+
+  async function resendSignupOtp() {
+    if (!authOtpEmail || !authPendingPassword) return;
+
+    authIsBusy = true;
+    renderAuthScreen();
+
+    try {
+      await authFetch('/auth/v1/signup', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: authOtpEmail,
+          password: authPendingPassword,
+        }),
+      });
+      showToast('OTP dikirim ulang. Cek email kamu.');
+    } catch (error) {
+      console.warn(error);
+      showToast('Belum bisa kirim ulang OTP. Tunggu sebentar lalu coba lagi.');
+    } finally {
+      authIsBusy = false;
+      renderAuthScreen();
     }
   }
 
@@ -1326,7 +1450,7 @@
     if (!authOtpEmail || !token) return;
 
     authIsBusy = true;
-    renderAuthPanel();
+    renderAuthScreen();
 
     try {
       const session = await authFetch('/auth/v1/verify', {
@@ -1334,24 +1458,21 @@
         body: JSON.stringify({
           email: authOtpEmail,
           token,
-          type: 'email',
+          type: 'signup',
         }),
       });
 
-      if (!session?.access_token) throw new Error('Sesi OTP tidak diterima.');
-
-      saveAuthSession(session);
-      authOtpEmail = '';
+      completeLogin(session);
       remoteHydrated = false;
       await hydrateRemoteState();
       renderShell();
-      showToast('Miaw-velous! Kamu sudah masuk.');
+      showToast('Miaw-velous! Email terverifikasi.');
     } catch (error) {
       console.warn(error);
       showToast('Kode OTP tidak valid atau sudah kedaluwarsa.');
     } finally {
       authIsBusy = false;
-      renderAuthPanel();
+      if (!isLoggedIn()) renderAuthScreen();
     }
   }
 
@@ -1472,21 +1593,36 @@
       closeSidebar();
     });
 
-    dom.authPanel.addEventListener('submit', (event) => {
+    dom.authScreen.addEventListener('submit', (event) => {
       event.preventDefault();
-      if (event.target.id === 'authEmailForm') requestAuthOtp(event.target);
+      if (event.target.id === 'authLoginForm') loginWithPassword(event.target);
+      if (event.target.id === 'authSignupForm') signupWithPassword(event.target);
       if (event.target.id === 'authOtpForm') verifyAuthOtp(event.target);
     });
 
-    dom.authPanel.addEventListener('click', (event) => {
+    dom.authScreen.addEventListener('click', (event) => {
       const button = event.target.closest('[data-auth-action]');
       if (!button) return;
 
       if (button.dataset.authAction === 'switch-mode') {
         authMode = authMode === 'login' ? 'signup' : 'login';
         authOtpEmail = '';
-        renderAuthPanel();
+        authPendingPassword = '';
+        renderAuthScreen();
       }
+
+      if (button.dataset.authAction === 'back-to-signup') {
+        authOtpEmail = '';
+        authPendingPassword = '';
+        renderAuthScreen();
+      }
+
+      if (button.dataset.authAction === 'resend-signup') resendSignupOtp();
+    });
+
+    dom.authPanel.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-auth-action]');
+      if (!button) return;
 
       if (button.dataset.authAction === 'logout') logoutAuth();
     });
