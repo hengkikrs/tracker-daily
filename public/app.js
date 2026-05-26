@@ -49,33 +49,15 @@
 
   const DEFAULT_HABITS = {
     daily: [
-      'Minum air yang cukup',
-      'Bergerak selama 20 menit',
-      'Membaca 10 halaman',
-      'Tidur sebelum target waktu',
-      'Menulis jurnal singkat',
-      'Latihan napas sadar',
-      'Merencanakan hari esok',
-      'Merapikan satu area',
+      'Minum air minimal 1.5 L',
+      'Workout 45 Menit',
+      'Baca Al-Quran 2 lembar',
+      'Evaluasi hari ini',
+      'Tidur jam 22.00 maksimal 23.00',
     ],
-    weekly: [
-      'Evaluasi mingguan',
-      'Persiapan makanan',
-      'Cek anggaran',
-      'Rapikan ruang kerja',
-    ],
-    specificWeekly: [
-      'Rutinitas reset hari Minggu',
-      'Sesi jalan kaki panjang',
-      'Bersih-bersih area khusus',
-      'Menghubungi keluarga atau teman',
-    ],
-    monthly: [
-      'Membayar tagihan',
-      'Pemeriksaan kesehatan',
-      'Target belajar bulanan',
-      'Cadangan data digital',
-    ],
+    weekly: [],
+    specificWeekly: [],
+    monthly: [],
   };
 
   const HABIT_NAME_TRANSLATIONS = {
