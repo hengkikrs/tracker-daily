@@ -819,8 +819,10 @@
     dom.authPanel.innerHTML = `
       <div class="auth-card signed-in">
         <span class="auth-kicker">Akun aktif</span>
-        <strong title="${escapeHtml(authEmail())}">${escapeHtml(authDisplayName())}</strong>
-        <p>${escapeHtml(authEmail())}</p>
+        <span class="auth-identity">
+          <strong title="${escapeHtml(authEmail())}">${escapeHtml(authDisplayName())}</strong>
+          <p>${escapeHtml(authEmail())}</p>
+        </span>
         <button class="auth-button secondary" type="button" data-auth-action="logout" ${authIsBusy ? 'disabled' : ''}>
           Keluar
         </button>
@@ -967,9 +969,9 @@
               <thead>
                 <tr>
                   <th>Bulan</th>
-                  <th>Jumlah Kebiasaan</th>
+                  <th>Kebiasaan</th>
                   <th>% Selesai</th>
-                  <th>Slot Dicentang</th>
+                  <th>Slot</th>
                   <th>Buka</th>
                 </tr>
               </thead>
