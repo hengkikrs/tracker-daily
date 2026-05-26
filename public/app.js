@@ -7,6 +7,7 @@
   const AUTH_SESSION_KEY = 'miaw-tracker.auth-session.v1';
   const SCHEMA_VERSION = 1;
   const REMOTE_SYNC_DEBOUNCE_MS = 150;
+  const OTP_RESEND_SECONDS = 60;
 
   const MONTHS = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -142,7 +143,10 @@
   let authSession = loadAuthSession();
   let authMode = 'login';
   let authOtpEmail = '';
+  let authPendingName = '';
   let authPendingPassword = '';
+  let authOtpResendAt = 0;
+  let authCooldownTimer = null;
   let authIsBusy = false;
 
   function uid(prefix = 'h') {
@@ -337,13 +341,39 @@
     return authSession?.user?.email || 'Akun tersambung';
   }
 
+  function authDisplayName() {
+    return authSession?.user?.user_metadata?.username
+      || authSession?.user?.user_metadata?.display_name
+      || authSession?.user?.user_metadata?.full_name
+      || authEmail();
+  }
+
   function completeLogin(session) {
     if (!session?.access_token) throw new Error('Sesi login tidak diterima.');
     saveAuthSession(session);
     authOtpEmail = '';
+    authPendingName = '';
     authPendingPassword = '';
+    authOtpResendAt = 0;
+    clearInterval(authCooldownTimer);
     authIsBusy = false;
     remoteHydrated = false;
+  }
+
+  function otpRemainingSeconds() {
+    return Math.max(0, Math.ceil((authOtpResendAt - Date.now()) / 1000));
+  }
+
+  function startOtpCountdown(seconds = OTP_RESEND_SECONDS) {
+    authOtpResendAt = Date.now() + seconds * 1000;
+    clearInterval(authCooldownTimer);
+    authCooldownTimer = setInterval(() => {
+      if (otpRemainingSeconds() <= 0) {
+        clearInterval(authCooldownTimer);
+        authCooldownTimer = null;
+      }
+      if (!isLoggedIn() && authMode === 'signup' && authOtpEmail) renderAuthScreen();
+    }, 1000);
   }
 
   async function authFetch(path, options = {}, token = supabaseConfig.key) {
@@ -705,6 +735,7 @@
 
     const isSignup = authMode === 'signup';
     const isVerify = isSignup && authOtpEmail;
+    const remaining = otpRemainingSeconds();
     const title = isVerify ? 'Verifikasi email' : (isSignup ? 'Daftar akun' : 'Masuk ke Miaw Tracker');
     const subtitle = isVerify
       ? `Masukkan kode OTP yang dikirim ke ${authOtpEmail}.`
@@ -731,16 +762,24 @@
           <form id="authOtpForm" class="auth-page-form">
             <label for="authOtp">Kode OTP</label>
             <input id="authOtp" name="token" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 digit dari email" maxlength="8" required />
+            <p class="auth-hint">Kode belum masuk? Tunggu ${remaining > 0 ? `${remaining} detik` : '0 detik'} untuk kirim ulang.</p>
             <button class="auth-primary" type="submit" ${authIsBusy ? 'disabled' : ''}>
               ${authIsBusy ? 'Memverifikasi...' : 'Verifikasi dan masuk'}
             </button>
           </form>
           <div class="auth-row-actions">
             <button class="auth-text-button" type="button" data-auth-action="back-to-signup">Ganti email</button>
-            <button class="auth-text-button" type="button" data-auth-action="resend-signup">Kirim ulang OTP</button>
+            <button class="auth-text-button" type="button" data-auth-action="resend-signup" ${authIsBusy || remaining > 0 ? 'disabled' : ''}>
+              ${remaining > 0 ? `Kirim ulang (${remaining})` : 'Kirim ulang OTP'}
+            </button>
           </div>
         ` : `
           <form id="${isSignup ? 'authSignupForm' : 'authLoginForm'}" class="auth-page-form">
+            ${isSignup ? `
+              <label for="authName">Nama pengguna</label>
+              <input id="authName" name="name" type="text" autocomplete="name" placeholder="Nama kamu" value="${escapeHtml(authPendingName)}" maxlength="40" required />
+            ` : ''}
+
             <label for="authEmail">Email</label>
             <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="nama@email.com" value="${escapeHtml(authOtpEmail)}" required />
 
@@ -780,8 +819,8 @@
     dom.authPanel.innerHTML = `
       <div class="auth-card signed-in">
         <span class="auth-kicker">Akun aktif</span>
-        <strong title="${escapeHtml(authEmail())}">${escapeHtml(authEmail())}</strong>
-        <p>Data tersinkron per akun.</p>
+        <strong title="${escapeHtml(authEmail())}">${escapeHtml(authDisplayName())}</strong>
+        <p>${escapeHtml(authEmail())}</p>
         <button class="auth-button secondary" type="button" data-auth-action="logout" ${authIsBusy ? 'disabled' : ''}>
           Keluar
         </button>
@@ -1381,14 +1420,21 @@
 
   async function signupWithPassword(form) {
     const data = new FormData(form);
+    const name = String(data.get('name') || '').trim();
     const email = String(data.get('email') || '').trim().toLowerCase();
     const password = String(data.get('password') || '');
+    if (!name) {
+      showToast('Nama pengguna wajib diisi.');
+      return;
+    }
+
     if (!email || password.length < 6) {
       showToast('Password minimal 6 karakter.');
       return;
     }
 
     authIsBusy = true;
+    authPendingName = name.slice(0, 40);
     authOtpEmail = email;
     authPendingPassword = password;
     renderAuthScreen();
@@ -1399,6 +1445,11 @@
         body: JSON.stringify({
           email,
           password,
+          data: {
+            username: authPendingName,
+            full_name: authPendingName,
+            display_name: authPendingName,
+          },
         }),
       });
 
@@ -1410,6 +1461,7 @@
         return;
       }
 
+      startOtpCountdown();
       showToast('OTP verifikasi dikirim. Cek email kamu.');
     } catch (error) {
       console.warn(error);
@@ -1421,19 +1473,20 @@
   }
 
   async function resendSignupOtp() {
-    if (!authOtpEmail || !authPendingPassword) return;
+    if (!authOtpEmail || otpRemainingSeconds() > 0) return;
 
     authIsBusy = true;
     renderAuthScreen();
 
     try {
-      await authFetch('/auth/v1/signup', {
+      await authFetch('/auth/v1/resend', {
         method: 'POST',
         body: JSON.stringify({
+          type: 'signup',
           email: authOtpEmail,
-          password: authPendingPassword,
         }),
       });
+      startOtpCountdown();
       showToast('OTP dikirim ulang. Cek email kamu.');
     } catch (error) {
       console.warn(error);
@@ -1608,12 +1661,15 @@
         authMode = authMode === 'login' ? 'signup' : 'login';
         authOtpEmail = '';
         authPendingPassword = '';
+        authPendingName = '';
+        authOtpResendAt = 0;
         renderAuthScreen();
       }
 
       if (button.dataset.authAction === 'back-to-signup') {
         authOtpEmail = '';
         authPendingPassword = '';
+        authOtpResendAt = 0;
         renderAuthScreen();
       }
 
