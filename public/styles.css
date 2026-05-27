@@ -1376,7 +1376,7 @@ svg {
 
 .habit-form {
   display: grid;
-  grid-template-columns: minmax(180px, 0.8fr) minmax(260px, 2fr) auto auto;
+  grid-template-columns: minmax(170px, 0.8fr) minmax(260px, 2fr) minmax(88px, 0.4fr) auto auto;
   gap: 12px;
   align-items: end;
 }
@@ -1428,12 +1428,12 @@ svg {
 }
 
 .habit-table {
-  min-width: 980px;
+  min-width: 1060px;
   table-layout: fixed;
 }
 
 .daily-table {
-  min-width: 1480px;
+  min-width: 1560px;
 }
 
 .habit-table th,
@@ -1480,6 +1480,13 @@ svg {
   text-align: center;
 }
 
+.points-col {
+  width: 76px;
+  min-width: 76px;
+  padding: 8px 6px;
+  text-align: center;
+}
+
 .progress-col {
   width: 148px;
   min-width: 148px;
@@ -1487,8 +1494,8 @@ svg {
 }
 
 .action-col {
-  width: 126px;
-  min-width: 126px;
+  width: 164px;
+  min-width: 164px;
   padding: 8px 10px;
 }
 
@@ -1507,6 +1514,20 @@ svg {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 800;
+}
+
+.points-pill {
+  display: inline-grid;
+  min-width: 42px;
+  min-height: 28px;
+  place-items: center;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--amber) 42%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--amber) 12%, var(--panel));
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 950;
 }
 
 .slot-cell {
@@ -1593,7 +1614,7 @@ svg {
 
 .row-actions {
   display: grid;
-  grid-template-columns: repeat(3, 34px);
+  grid-template-columns: repeat(4, 34px);
   gap: 5px;
   justify-content: end;
 }
@@ -1791,7 +1812,7 @@ svg {
   }
 
   .habit-form {
-    grid-template-columns: minmax(180px, 1fr) minmax(260px, 2fr);
+    grid-template-columns: minmax(160px, 1fr) minmax(240px, 2fr) minmax(88px, 0.6fr);
   }
 
   .habit-form .primary-button,
@@ -2063,6 +2084,19 @@ svg {
     min-width: 38px;
   }
 
+  .points-col {
+    width: 56px;
+    min-width: 56px;
+    padding: 6px 4px;
+  }
+
+  .points-pill {
+    min-width: 36px;
+    min-height: 26px;
+    padding: 0 6px;
+    font-size: 0.72rem;
+  }
+
   .slot-check {
     width: 28px;
     height: 28px;
@@ -2075,19 +2109,19 @@ svg {
   }
 
   .action-col {
-    width: 104px;
-    min-width: 104px;
+    width: 132px;
+    min-width: 132px;
     padding: 6px 7px;
   }
 
   .row-actions {
-    grid-template-columns: repeat(3, 32px);
+    grid-template-columns: repeat(4, 30px);
     gap: 4px;
   }
 
   .icon-action {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
   }
 
   .habit-title strong {
@@ -2131,11 +2165,11 @@ svg {
   }
 
   .daily-table.mobile-full {
-    min-width: 1230px;
+    min-width: 1320px;
   }
 
   .habit-table:not(.daily-table) {
-    min-width: 560px;
+    min-width: 640px;
   }
 
   .month-board {

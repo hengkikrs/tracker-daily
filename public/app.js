@@ -60,6 +60,44 @@
     monthly: [],
   };
 
+  const CATEGORY_DEFAULT_POINTS = {
+    daily: 50,
+    weekly: 65,
+    specificWeekly: 70,
+    monthly: 85,
+  };
+
+  const DEFAULT_HABIT_POINTS = {
+    'Minum air minimal 1.5 L': 35,
+    'Workout 45 Menit': 85,
+    'Baca Al-Quran 2 lembar': 55,
+    'Evaluasi hari ini': 30,
+    'Tidur jam 22.00 maksimal 23.00': 75,
+    'Bangun jam 4': 80,
+    'Shalat Tahajud': 85,
+    'Baca Al-Waqiah & Al-Mulk': 60,
+    'Shalat Wajib & Rawatib & Doa': 75,
+    'Shalat Dhuha': 55,
+    'Minum Creatine & Susu Protein (Pagi & Sore)': 45,
+    'Makan minimal 3x sehari (300 gr nasi)': 60,
+    'Mandi 2x sehari pagi & sore': 35,
+    'Sikat gigi setiap malam': 25,
+    'Domestik 30 menit': 50,
+    'Game (Sudoku 2x Easy, Geografi 100, ML 1x)': 35,
+    'Belajar editing video & AI max 2 jam': 70,
+    'Belajar bahasa inggris max 2 jam': 70,
+    'Sadaqah subuh': 30,
+    'Baca Buku 50 Halaman': 75,
+    'Bangun jam 4, cuci muka dan shalat tahajud': 90,
+    'Shalat wajib, rawatib dan dhuha': 80,
+    'Baca Al-Quran minimal 1 halaman, Al Waqiah (subuh) dan Al Mulk (malam)': 75,
+    'Pekerjaan domestik 30 menit': 50,
+    'Mandi pagi dan sore, sikat gigi malam, dan bersihin muka sebelum tidur': 45,
+    'Makan 3x (8, 12, 17) dan minum air 1.5 L': 65,
+    'Belajar English 30 menit aja': 45,
+    'Catat Pengeluaran hari ini': 35,
+  };
+
   const HABIT_NAME_TRANSLATIONS = {
     'Drink enough water': 'Minum air yang cukup',
     'Move for 20 minutes': 'Bergerak selama 20 menit',
@@ -179,6 +217,40 @@
     return Math.min(Math.max(value, min), max);
   }
 
+  function normalizeHabitPoints(value) {
+    if (value === null || value === undefined || String(value).trim() === '') return null;
+    const points = Number(value);
+    if (!Number.isFinite(points)) return null;
+    return Math.round(clamp(points, 1, 100));
+  }
+
+  function suggestHabitPoints(name, categoryKey) {
+    if (DEFAULT_HABIT_POINTS[name]) return DEFAULT_HABIT_POINTS[name];
+
+    const normalized = String(name || '').toLowerCase();
+    const base = CATEGORY_DEFAULT_POINTS[categoryKey] || 50;
+    const rules = [
+      { score: 90, words: ['deep work', 'proyek besar', 'marathon', 'ujian'] },
+      { score: 85, words: ['workout', 'gym', 'olahraga', 'lari', 'cardio', 'training'] },
+      { score: 85, words: ['tahajud'] },
+      { score: 80, words: ['bangun jam 4', 'shalat wajib', 'rawatib', 'puasa', 'deadline', 'presentasi'] },
+      { score: 75, words: ['tidur', 'bangun pagi', 'no sugar', 'tanpa gula'] },
+      { score: 70, words: ['belajar', 'course', 'kelas', 'menulis', 'konten', 'editing', 'ai max'] },
+      { score: 60, words: ['baca buku', 'al-waqiah', 'al-mulk', 'quran', 'al-quran', 'meeting', 'review mingguan'] },
+      { score: 55, words: ['dhuha'] },
+      { score: 45, words: ['protein', 'creatine', 'makan', 'budget', 'bersih', 'rapikan', 'backup', 'meal prep'] },
+      { score: 35, words: ['minum', 'air', 'vitamin', 'jalan'] },
+      { score: 30, words: ['sadaqah', 'sedekah', 'evaluasi', 'jurnal', 'journal', 'plan', 'rencana', 'napas'] },
+    ];
+
+    const matched = rules.find((rule) => rule.words.some((word) => normalized.includes(word)));
+    return matched ? matched.score : base;
+  }
+
+  function habitPoints(habit, categoryKey) {
+    return normalizeHabitPoints(habit.points) || suggestHabitPoints(habit.name, categoryKey);
+  }
+
   function roundPercent(value) {
     return Number.isFinite(value) ? value.toFixed(2) : '0.00';
   }
@@ -229,12 +301,13 @@
     return `${MONTHS[monthIndex]} ${year}`;
   }
 
-  function createHabit(name, categoryKey, year, monthIndex) {
+  function createHabit(name, categoryKey, year, monthIndex, points = null) {
     return {
       id: uid(categoryKey.slice(0, 2)),
       name,
       category: categoryKey,
       active: true,
+      points: normalizeHabitPoints(points) || suggestHabitPoints(name, categoryKey),
       slots: Array(slotCountFor(categoryKey, year, monthIndex)).fill(false),
       createdAt: Date.now(),
     };
@@ -561,6 +634,7 @@
         if (!habit.category) habit.category = categoryKey;
         if (typeof habit.active !== 'boolean') habit.active = true;
         if (HABIT_NAME_TRANSLATIONS[habit.name]) habit.name = HABIT_NAME_TRANSLATIONS[habit.name];
+        habit.points = normalizeHabitPoints(habit.points) || suggestHabitPoints(habit.name, categoryKey);
         if (!Array.isArray(habit.slots)) habit.slots = [];
         habit.slots = Array.from({ length: expectedSlots }, (_, index) => Boolean(habit.slots[index]));
       });
@@ -578,9 +652,15 @@
   function calculateHabitProgress(habit, categoryKey, year, monthIndex) {
     const totalSlots = slotCountFor(categoryKey, year, monthIndex);
     const checkedSlots = habit.slots.slice(0, totalSlots).filter(Boolean).length;
+    const points = habitPoints(habit, categoryKey);
+    const earnedPoints = checkedSlots * points;
+    const possiblePoints = totalSlots * points;
     const progress = totalSlots === 0 ? 0 : (checkedSlots / totalSlots) * 100;
 
     return {
+      points,
+      earnedPoints,
+      possiblePoints,
       checkedSlots,
       totalSlots,
       progress,
@@ -593,10 +673,18 @@
 
     return Array.from({ length: dayCount }, (_, dayIndex) => {
       const checked = activeDailyHabits.filter((habit) => Boolean(habit.slots[dayIndex])).length;
+      const earnedPoints = activeDailyHabits.reduce((sum, habit) => (
+        sum + (habit.slots[dayIndex] ? habitPoints(habit, 'daily') : 0)
+      ), 0);
+      const possiblePoints = activeDailyHabits.reduce((sum, habit) => (
+        sum + habitPoints(habit, 'daily')
+      ), 0);
       return {
         checked,
         total: activeDailyHabits.length,
-        progress: activeDailyHabits.length === 0 ? 0 : (checked / activeDailyHabits.length) * 100,
+        earnedPoints,
+        possiblePoints,
+        progress: possiblePoints === 0 ? 0 : (earnedPoints / possiblePoints) * 100,
       };
     });
   }
@@ -610,9 +698,11 @@
     });
 
     const totalHabits = rows.length;
-    const average = totalHabits === 0
+    const earnedPoints = rows.reduce((sum, row) => sum + row.earnedPoints, 0);
+    const possiblePoints = rows.reduce((sum, row) => sum + row.possiblePoints, 0);
+    const average = possiblePoints === 0
       ? 0
-      : rows.reduce((sum, row) => sum + row.progress, 0) / totalHabits;
+      : (earnedPoints / possiblePoints) * 100;
 
     const checkedSlots = rows.reduce((sum, row) => sum + row.checkedSlots, 0);
     const totalSlots = rows.reduce((sum, row) => sum + row.totalSlots, 0);
@@ -623,6 +713,8 @@
       monthName: MONTHS[monthIndex],
       totalHabits,
       average,
+      earnedPoints,
+      possiblePoints,
       checkedSlots,
       totalSlots,
       activeDailyHabits,
@@ -642,12 +734,16 @@
     const totalHabits = months.reduce((sum, month) => sum + month.totalHabits, 0);
     const checkedSlots = months.reduce((sum, month) => sum + month.checkedSlots, 0);
     const totalSlots = months.reduce((sum, month) => sum + month.totalSlots, 0);
+    const earnedPoints = months.reduce((sum, month) => sum + month.earnedPoints, 0);
+    const possiblePoints = months.reduce((sum, month) => sum + month.possiblePoints, 0);
 
     return {
       months,
       yearAverage,
       bestMonth,
       totalHabits,
+      earnedPoints,
+      possiblePoints,
       checkedSlots,
       totalSlots,
     };
@@ -852,9 +948,9 @@
     const focusMonthData = ensureMonth(year, activeMonth);
     const focusDailyRates = calculateDailyRates(focusMonthData, year, activeMonth);
     const categoryBreakdown = calculateCategoryBreakdown(focusMonthData, year, activeMonth);
-    const slotRate = yearStats.totalSlots === 0
+    const pointRate = yearStats.possiblePoints === 0
       ? 0
-      : (yearStats.checkedSlots / yearStats.totalSlots) * 100;
+      : (yearStats.earnedPoints / yearStats.possiblePoints) * 100;
 
     return `
       <div class="dashboard-layout">
@@ -879,7 +975,7 @@
               <div>
                 <span class="kicker">Garis pelacakan tahunan</span>
                 <h3>Peta Penyelesaian Kebiasaan ${year}</h3>
-                <p>Rata-rata bulanan dihitung dari semua kebiasaan harian, mingguan, mingguan khusus, dan bulanan yang aktif.</p>
+                <p>Rata-rata bulanan dihitung dari poin berbobot semua kebiasaan aktif.</p>
               </div>
               <button class="small-button" type="button" data-action="jump-month" data-month="${activeMonth}">
                 Buka ${focusMonth.monthName}
@@ -900,10 +996,10 @@
         </section>
 
         <section class="dashboard-band">
-          ${renderMetric('Rata-rata Tahun', `${roundPercent(yearStats.yearAverage)}%`, 'Momentum miaw-keren', 'teal')}
+          ${renderMetric('Rata-rata Tahun', `${roundPercent(yearStats.yearAverage)}%`, 'Momentum miaw-keren berbasis poin', 'teal')}
           ${renderMetric('Bulan Terbaik', bestMonth ? bestMonth.monthName : '-', bestMonth ? `${roundPercent(bestMonth.average)}% selesai` : 'Belum ada data', 'blue')}
-          ${renderMetric('Slot Dicentang', `${roundPercent(slotRate)}%`, `${yearStats.checkedSlots} dari ${yearStats.totalSlots} slot`, 'amber')}
-          ${renderMetric('Bulan Fokus', `${roundPercent(focusMonth.average)}%`, `${focusMonth.checkedSlots} dari ${focusMonth.totalSlots} slot`, 'rose')}
+          ${renderMetric('Poin Tahun', `${roundPercent(pointRate)}%`, `${yearStats.earnedPoints} dari ${yearStats.possiblePoints} poin`, 'amber')}
+          ${renderMetric('Bulan Fokus', `${roundPercent(focusMonth.average)}%`, `${focusMonth.earnedPoints} dari ${focusMonth.possiblePoints} poin`, 'rose')}
         </section>
 
         <section class="category-board" aria-label="Rincian kategori bulan fokus">
@@ -916,7 +1012,7 @@
               <div class="category-track" aria-hidden="true">
                 <span style="width:${clamp(category.average, 0, 100)}%"></span>
               </div>
-              <p>${category.checkedSlots}/${category.totalSlots} dicentang dari ${category.totalHabits} kebiasaan aktif</p>
+              <p>${category.earnedPoints}/${category.possiblePoints} poin dari ${category.totalHabits} kebiasaan aktif</p>
             </article>
           `).join('')}
         </section>
@@ -933,7 +1029,7 @@
               <button class="month-score-card ${scoreClass(month.average)}" type="button" data-action="jump-month" data-month="${month.monthIndex}">
                 <span>${month.monthName.slice(0, 3)}</span>
                 <strong>${compactPercent(month.average)}</strong>
-                <em>${month.totalHabits} kebiasaan</em>
+                <em>${month.earnedPoints}/${month.possiblePoints} poin</em>
               </button>
             `).join('')}
           </div>
@@ -953,6 +1049,7 @@
                   <th>Bulan</th>
                   <th>Kebiasaan</th>
                   <th>% Selesai</th>
+                  <th>Poin</th>
                   <th>Slot</th>
                   <th>Buka</th>
                 </tr>
@@ -968,6 +1065,7 @@
                         <strong>${roundPercent(month.average)}%</strong>
                       </div>
                     </td>
+                    <td>${month.earnedPoints} / ${month.possiblePoints}</td>
                     <td>${month.checkedSlots} / ${month.totalSlots}</td>
                     <td>
                       <button class="small-button" type="button" data-action="jump-month" data-month="${month.monthIndex}">Lihat</button>
@@ -988,9 +1086,11 @@
         .filter((habit) => habit.active)
         .map((habit) => calculateHabitProgress(habit, categoryKey, year, monthIndex));
       const totalHabits = rows.length;
-      const average = totalHabits === 0
+      const earnedPoints = rows.reduce((sum, row) => sum + row.earnedPoints, 0);
+      const possiblePoints = rows.reduce((sum, row) => sum + row.possiblePoints, 0);
+      const average = possiblePoints === 0
         ? 0
-        : rows.reduce((sum, row) => sum + row.progress, 0) / totalHabits;
+        : (earnedPoints / possiblePoints) * 100;
       const checkedSlots = rows.reduce((sum, row) => sum + row.checkedSlots, 0);
       const totalSlots = rows.reduce((sum, row) => sum + row.totalSlots, 0);
 
@@ -998,6 +1098,8 @@
         categoryKey,
         totalHabits,
         average,
+        earnedPoints,
+        possiblePoints,
         checkedSlots,
         totalSlots,
       };
@@ -1095,10 +1197,10 @@
     return `
       <div class="month-layout">
         <section class="metric-grid" aria-label="Metrik ringkasan bulanan">
-          ${renderMetric('Rata-rata Global Bulan', `${roundPercent(stats.average)}%`, 'Rata-rata progres semua kebiasaan aktif', 'teal')}
+          ${renderMetric('Rata-rata Global Bulan', `${roundPercent(stats.average)}%`, 'Rata-rata progres berbobot semua kebiasaan aktif', 'teal')}
           ${renderMetric('Kebiasaan Aktif', String(stats.totalHabits), `${stats.activeDailyHabits} kebiasaan harian masuk rumus harian`, 'blue')}
-          ${renderMetric('Rata-rata Harian', `${roundPercent(dailyAverage)}%`, 'Rata-rata tingkat penyelesaian per kolom hari', 'amber')}
-          ${renderMetric('Slot Dicentang', `${stats.checkedSlots}/${stats.totalSlots}`, 'Semua nilai dicentang di lembar ini', 'rose')}
+          ${renderMetric('Rata-rata Harian', `${roundPercent(dailyAverage)}%`, 'Rata-rata poin harian yang selesai', 'amber')}
+          ${renderMetric('Poin Bulan', `${stats.earnedPoints}/${stats.possiblePoints}`, 'Poin selesai dari target bulan ini', 'rose')}
         </section>
 
         <section class="panel control-panel">
@@ -1114,6 +1216,10 @@
             <label class="habit-name-field">
               <span>Nama kebiasaan</span>
               <input name="name" type="text" maxlength="80" placeholder="Tambah kebiasaan baru" autocomplete="off" required />
+            </label>
+            <label class="habit-points-field">
+              <span>Poin</span>
+              <input name="points" type="number" min="1" max="100" step="1" placeholder="Auto" />
             </label>
             <button class="primary-button" type="submit">Tambah Kebiasaan</button>
             <button class="danger-button" type="button" data-action="reset-month">Reset Centang</button>
@@ -1172,6 +1278,7 @@
             <thead>
               <tr>
                 <th class="habit-col">Kebiasaan</th>
+                <th class="points-col">Poin</th>
                 ${slotIndexes.map((slotIndex) => `
                   <th class="slot-col ${slotIndex === focusDayIndex ? 'is-focus-slot' : ''}" data-slot-index="${slotIndex}" title="${escapeHtml(slotTitle(categoryKey, slotIndex, year, monthIndex))}">
                     ${escapeHtml(slotLabel(categoryKey, slotIndex, year, monthIndex))}
@@ -1200,8 +1307,9 @@
     return `
       <tr class="rate-row">
         <th class="habit-col">${label}</th>
+        <td class="points-col">Poin</td>
         ${dailyRates.map((day, dayIndex) => `
-          <td class="rate-cell ${dayIndex === focusDayIndex ? 'is-focus-slot' : ''}" data-slot-index="${dayIndex}" title="${day.checked} dari ${day.total} kebiasaan harian aktif">
+          <td class="rate-cell ${dayIndex === focusDayIndex ? 'is-focus-slot' : ''}" data-slot-index="${dayIndex}" title="${day.earnedPoints} dari ${day.possiblePoints} poin harian">
             ${compactPercent(day.progress)}
           </td>
         `).join('')}
@@ -1214,7 +1322,7 @@
   function renderEmptyHabitRow(slotCount) {
     return `
       <tr>
-        <td class="empty-row" colspan="${slotCount + 3}">Belum ada kebiasaan untuk kategori ini.</td>
+        <td class="empty-row" colspan="${slotCount + 4}">Belum ada kebiasaan untuk kategori ini.</td>
       </tr>
     `;
   }
@@ -1233,6 +1341,9 @@
             <span class="habit-meta">${config.shortLabel} - ${statusLabel}</span>
           </div>
         </th>
+        <td class="points-col">
+          <span class="points-pill">${progressData.points}</span>
+        </td>
         ${slotIndexes.map((slotIndex) => `
           <td class="slot-cell ${slotIndex === focusDayIndex ? 'is-focus-slot' : ''}" data-slot-index="${slotIndex}">
             <input
@@ -1252,13 +1363,16 @@
           <div class="progress-stack">
             <span class="progress-bar" aria-hidden="true"><span style="width:${clamp(progressData.progress, 0, 100)}%"></span></span>
             <strong>${roundPercent(progressData.progress)}%</strong>
-            <small>${progressData.checkedSlots}/${progressData.totalSlots}</small>
+            <small>${progressData.earnedPoints}/${progressData.possiblePoints} poin</small>
           </div>
         </td>
         <td class="action-col">
           <div class="row-actions">
             <button class="icon-action" type="button" title="Ganti nama kebiasaan" aria-label="Ganti nama kebiasaan" data-action="rename-habit" data-category="${categoryKey}" data-habit-id="${habit.id}">
               <svg viewBox="0 0 24 24"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z"/><path d="M13.5 6.5 17.5 10.5"/></svg>
+            </button>
+            <button class="icon-action" type="button" title="Ubah poin kebiasaan" aria-label="Ubah poin kebiasaan" data-action="edit-points" data-category="${categoryKey}" data-habit-id="${habit.id}">
+              <svg viewBox="0 0 24 24"><path d="M12 3 14.7 8.5 21 9.4 16.5 13.8 17.6 20 12 17.1 6.4 20 7.5 13.8 3 9.4 9.3 8.5 12 3Z"/></svg>
             </button>
             <button class="icon-action" type="button" title="${habit.active ? 'Jeda kebiasaan' : 'Aktifkan kebiasaan'}" aria-label="${habit.active ? 'Jeda kebiasaan' : 'Aktifkan kebiasaan'}" data-action="toggle-active" data-category="${categoryKey}" data-habit-id="${habit.id}">
               <svg viewBox="0 0 24 24">${habit.active ? '<path d="M10 4H6v16h4V4ZM18 4h-4v16h4V4Z"/>' : '<path d="m8 5 11 7-11 7V5Z"/>'}</svg>
@@ -1317,7 +1431,7 @@
                 <span class="rank">${index + 1}</span>
                 <div>
                   <strong>${escapeHtml(row.name)}</strong>
-                  <span>${row.checkedSlots}/${row.totalSlots} hari dicentang</span>
+                  <span>${row.earnedPoints}/${row.possiblePoints} poin - ${row.checkedSlots}/${row.totalSlots} hari</span>
                 </div>
                 <em>${roundPercent(row.progress)}%</em>
               </li>
@@ -1346,11 +1460,12 @@
     const data = new FormData(form);
     const categoryKey = data.get('category');
     const name = String(data.get('name') || '').trim();
+    const points = normalizeHabitPoints(data.get('points')) || suggestHabitPoints(name, categoryKey);
 
     if (!CATEGORY_CONFIG[categoryKey] || !name) return;
 
     const monthData = ensureMonth(activeYear, activeMonth);
-    monthData.categories[categoryKey].push(createHabit(name, categoryKey, activeYear, activeMonth));
+    monthData.categories[categoryKey].push(createHabit(name, categoryKey, activeYear, activeMonth, points));
     form.reset();
     saveState();
     renderShell();
@@ -1562,6 +1677,26 @@
     showToast('Nama kebiasaan diganti.');
   }
 
+  function editHabitPoints(categoryKey, habitId) {
+    const habit = findHabit(categoryKey, habitId);
+    if (!habit) return;
+
+    const currentPoints = habitPoints(habit, categoryKey);
+    const nextPoints = prompt('Ubah poin kebiasaan (1-100):', String(currentPoints));
+    if (nextPoints === null) return;
+
+    const normalizedPoints = normalizeHabitPoints(nextPoints);
+    if (!normalizedPoints) {
+      showToast('Poin harus angka 1-100.');
+      return;
+    }
+
+    habit.points = normalizedPoints;
+    saveState();
+    renderShell();
+    showToast('Poin kebiasaan diperbarui.');
+  }
+
   function toggleActive(categoryKey, habitId) {
     const habit = findHabit(categoryKey, habitId);
     if (!habit) return;
@@ -1718,6 +1853,7 @@
       }
 
       if (action === 'rename-habit') renameHabit(category, habitId);
+      if (action === 'edit-points') editHabitPoints(category, habitId);
       if (action === 'toggle-active') toggleActive(category, habitId);
       if (action === 'delete-habit') deleteHabit(category, habitId);
       if (action === 'reset-month') resetMonthChecks();
