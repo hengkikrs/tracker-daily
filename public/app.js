@@ -259,6 +259,10 @@
     return `${Math.round(Number.isFinite(value) ? value : 0)}%`;
   }
 
+  function pointScore(value) {
+    return String(Math.round(clamp(Number.isFinite(value) ? value : 0, 0, 100)));
+  }
+
   function daysInMonth(year, monthIndex) {
     return new Date(year, monthIndex + 1, 0).getDate();
   }
@@ -1020,9 +1024,9 @@
         <section class="dashboard-band">
           ${renderMetric('Rata-rata Tahun', `${roundPercent(yearStats.yearAverage)}%`, 'Momentum miaw-keren berbasis poin', 'teal')}
           ${renderMetric('Bulan Terbaik', bestMonth ? bestMonth.monthName : '-', bestMonth ? `${roundPercent(bestMonth.average)}% selesai` : 'Belum ada data', 'blue')}
-          ${renderMetric('Poin Tahun', `${roundPercent(pointRate)}%`, `${yearStats.earnedPoints} dari ${yearStats.possiblePoints} poin`, 'amber')}
-          ${renderMetric('Bulan Fokus', `${roundPercent(focusMonth.average)}%`, `${focusMonth.earnedPoints} dari ${focusMonth.possiblePoints} poin`, 'rose')}
-          ${renderMetric(todayPoints.label, `${todayPoints.earnedPoints}/${todayPoints.possiblePoints}`, `${todayPoints.dateText} - ${roundPercent(todayPoints.progress)}%`, 'violet')}
+          ${renderMetric('Poin Tahun', pointScore(pointRate), `${yearStats.earnedPoints} dari ${yearStats.possiblePoints} poin`, 'amber')}
+          ${renderMetric('Bulan Fokus', pointScore(focusMonth.average), `${focusMonth.earnedPoints} dari ${focusMonth.possiblePoints} poin`, 'rose')}
+          ${renderMetric(todayPoints.label, pointScore(todayPoints.progress), `${todayPoints.dateText} - ${todayPoints.earnedPoints} dari ${todayPoints.possiblePoints} poin`, 'violet')}
         </section>
 
         <section class="category-board" aria-label="Rincian kategori bulan fokus">
@@ -1054,7 +1058,7 @@
               <button class="month-score-card ${scoreClass(month.average)}" type="button" data-action="jump-month" data-month="${month.monthIndex}">
                 <span>${month.monthName.slice(0, 3)}</span>
                 <strong>${compactPercent(month.average)}</strong>
-                <em>${month.earnedPoints}/${month.possiblePoints} poin</em>
+                <em>Nilai ${pointScore(month.average)}</em>
               </button>
             `).join('')}
           </div>
@@ -1090,7 +1094,7 @@
                         <strong>${roundPercent(month.average)}%</strong>
                       </div>
                     </td>
-                    <td>${month.earnedPoints} / ${month.possiblePoints}</td>
+                    <td>${pointScore(month.average)}</td>
                     <td>${month.checkedSlots} / ${month.totalSlots}</td>
                     <td>
                       <button class="small-button" type="button" data-action="jump-month" data-month="${month.monthIndex}">Lihat</button>
@@ -1189,11 +1193,10 @@
             const isToday = isCurrentMonth && today.getDate() - 1 === index;
             const isFocus = focusDayIndex === index;
             return `
-              <div class="point-day ${scoreClass(day.progress)} ${isToday ? 'is-today' : ''} ${isFocus ? 'is-focus' : ''}" title="${index + 1} ${MONTHS[monthIndex]} ${year}: ${day.earnedPoints}/${day.possiblePoints} poin">
+              <div class="point-day ${scoreClass(day.progress)} ${isToday ? 'is-today' : ''} ${isFocus ? 'is-focus' : ''}" title="${index + 1} ${MONTHS[monthIndex]} ${year}: nilai ${pointScore(day.progress)} (${day.earnedPoints} dari ${day.possiblePoints} poin)">
                 <span>${index + 1}</span>
-                <strong>${day.earnedPoints}</strong>
-                <small>/${day.possiblePoints}</small>
-                <em>${compactPercent(day.progress)}</em>
+                <strong>${pointScore(day.progress)}</strong>
+                <small>Nilai</small>
               </div>
             `;
           }).join('')}
@@ -1273,8 +1276,8 @@
           ${renderMetric('Rata-rata Global Bulan', `${roundPercent(stats.average)}%`, 'Rata-rata progres berbobot semua kebiasaan aktif', 'teal')}
           ${renderMetric('Kebiasaan Aktif', String(stats.totalHabits), `${stats.activeDailyHabits} kebiasaan harian masuk rumus harian`, 'blue')}
           ${renderMetric('Rata-rata Harian', `${roundPercent(dailyAverage)}%`, 'Rata-rata poin harian yang selesai', 'amber')}
-          ${renderMetric('Poin Bulan', `${stats.earnedPoints}/${stats.possiblePoints}`, 'Poin selesai dari target bulan ini', 'rose')}
-          ${renderMetric(todayPoints.label, `${todayPoints.earnedPoints}/${todayPoints.possiblePoints}`, `${todayPoints.dateText} - ${roundPercent(todayPoints.progress)}%`, 'violet')}
+          ${renderMetric('Poin Bulan', pointScore(stats.average), `${stats.earnedPoints} dari ${stats.possiblePoints} poin selesai`, 'rose')}
+          ${renderMetric(todayPoints.label, pointScore(todayPoints.progress), `${todayPoints.dateText} - ${todayPoints.earnedPoints} dari ${todayPoints.possiblePoints} poin`, 'violet')}
         </section>
 
         ${renderPointCalendar(dailyRates, year, monthIndex, todayPoints.dayIndex)}
