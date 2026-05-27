@@ -689,6 +689,27 @@
     });
   }
 
+  function dailyPointSummary(dailyRates, year, monthIndex) {
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === year && today.getMonth() === monthIndex;
+    const dayIndex = isCurrentMonth ? today.getDate() - 1 : focusedDayIndex(year, monthIndex);
+    const day = dailyRates[dayIndex] || {
+      checked: 0,
+      total: 0,
+      earnedPoints: 0,
+      possiblePoints: 0,
+      progress: 0,
+    };
+
+    return {
+      ...day,
+      dayIndex,
+      isCurrentMonth,
+      label: isCurrentMonth ? 'Poin Hari Ini' : 'Poin Tanggal Fokus',
+      dateText: `${dayIndex + 1} ${MONTHS[monthIndex]} ${year}`,
+    };
+  }
+
   function calculateMonthStats(year, monthIndex) {
     const monthData = ensureMonth(year, monthIndex);
     const habits = getAllHabits(monthData);
@@ -948,6 +969,7 @@
     const focusMonthData = ensureMonth(year, activeMonth);
     const focusDailyRates = calculateDailyRates(focusMonthData, year, activeMonth);
     const categoryBreakdown = calculateCategoryBreakdown(focusMonthData, year, activeMonth);
+    const todayPoints = dailyPointSummary(focusDailyRates, year, activeMonth);
     const pointRate = yearStats.possiblePoints === 0
       ? 0
       : (yearStats.earnedPoints / yearStats.possiblePoints) * 100;
@@ -1000,6 +1022,7 @@
           ${renderMetric('Bulan Terbaik', bestMonth ? bestMonth.monthName : '-', bestMonth ? `${roundPercent(bestMonth.average)}% selesai` : 'Belum ada data', 'blue')}
           ${renderMetric('Poin Tahun', `${roundPercent(pointRate)}%`, `${yearStats.earnedPoints} dari ${yearStats.possiblePoints} poin`, 'amber')}
           ${renderMetric('Bulan Fokus', `${roundPercent(focusMonth.average)}%`, `${focusMonth.earnedPoints} dari ${focusMonth.possiblePoints} poin`, 'rose')}
+          ${renderMetric(todayPoints.label, `${todayPoints.earnedPoints}/${todayPoints.possiblePoints}`, `${todayPoints.dateText} - ${roundPercent(todayPoints.progress)}%`, 'violet')}
         </section>
 
         <section class="category-board" aria-label="Rincian kategori bulan fokus">
@@ -1016,6 +1039,8 @@
             </article>
           `).join('')}
         </section>
+
+        ${renderPointCalendar(focusDailyRates, year, activeMonth, todayPoints.dayIndex)}
 
         <section class="panel month-board">
           <div class="section-heading">
@@ -1130,6 +1155,53 @@
     `;
   }
 
+  function renderPointCalendar(dailyRates, year, monthIndex, focusDayIndex = focusedDayIndex(year, monthIndex)) {
+    if (!dailyRates.length) {
+      return `
+        <section class="panel point-calendar-panel">
+          <div class="section-heading">
+            <div>
+              <h3>Kalender Poin ${MONTHS[monthIndex]}</h3>
+              <p>Belum ada kebiasaan harian aktif untuk bulan ini.</p>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    const firstDayOffset = new Date(year, monthIndex, 1).getDay();
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === year && today.getMonth() === monthIndex;
+    const weekDays = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+    return `
+      <section class="panel point-calendar-panel" aria-label="Kalender poin harian ${MONTHS[monthIndex]} ${year}">
+        <div class="section-heading">
+          <div>
+            <h3>Kalender Poin ${MONTHS[monthIndex]}</h3>
+            <p>Setiap tanggal menunjukkan poin harian yang didapat dari kebiasaan harian aktif.</p>
+          </div>
+        </div>
+        <div class="point-calendar">
+          ${weekDays.map((day) => `<div class="point-weekday">${day}</div>`).join('')}
+          ${Array.from({ length: firstDayOffset }, () => '<div class="point-day is-empty"></div>').join('')}
+          ${dailyRates.map((day, index) => {
+            const isToday = isCurrentMonth && today.getDate() - 1 === index;
+            const isFocus = focusDayIndex === index;
+            return `
+              <div class="point-day ${scoreClass(day.progress)} ${isToday ? 'is-today' : ''} ${isFocus ? 'is-focus' : ''}" title="${index + 1} ${MONTHS[monthIndex]} ${year}: ${day.earnedPoints}/${day.possiblePoints} poin">
+                <span>${index + 1}</span>
+                <strong>${day.earnedPoints}</strong>
+                <small>/${day.possiblePoints}</small>
+                <em>${compactPercent(day.progress)}</em>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </section>
+    `;
+  }
+
   function renderMetric(label, value, note, tone) {
     return `
       <article class="metric-card tone-${tone}">
@@ -1190,6 +1262,7 @@
     const leaderboards = calculateLeaderboards(monthData, year, monthIndex);
     const dailyRates = calculateDailyRates(monthData, year, monthIndex);
     const focusDayIndex = focusedDayIndex(year, monthIndex);
+    const todayPoints = dailyPointSummary(dailyRates, year, monthIndex);
     const dailyAverage = dailyRates.length === 0
       ? 0
       : dailyRates.reduce((sum, day) => sum + day.progress, 0) / dailyRates.length;
@@ -1201,7 +1274,10 @@
           ${renderMetric('Kebiasaan Aktif', String(stats.totalHabits), `${stats.activeDailyHabits} kebiasaan harian masuk rumus harian`, 'blue')}
           ${renderMetric('Rata-rata Harian', `${roundPercent(dailyAverage)}%`, 'Rata-rata poin harian yang selesai', 'amber')}
           ${renderMetric('Poin Bulan', `${stats.earnedPoints}/${stats.possiblePoints}`, 'Poin selesai dari target bulan ini', 'rose')}
+          ${renderMetric(todayPoints.label, `${todayPoints.earnedPoints}/${todayPoints.possiblePoints}`, `${todayPoints.dateText} - ${roundPercent(todayPoints.progress)}%`, 'violet')}
         </section>
+
+        ${renderPointCalendar(dailyRates, year, monthIndex, todayPoints.dayIndex)}
 
         <section class="panel control-panel">
           <form id="habitForm" class="habit-form">
