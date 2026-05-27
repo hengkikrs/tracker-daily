@@ -275,6 +275,14 @@
     return 0;
   }
 
+  function currentTrackingDate() {
+    const today = new Date();
+    return {
+      year: today.getFullYear(),
+      monthIndex: today.getMonth(),
+    };
+  }
+
   function weeksInMonth(year, monthIndex) {
     return Math.ceil(daysInMonth(year, monthIndex) / 7);
   }
@@ -405,6 +413,22 @@
       || authSession?.user?.user_metadata?.display_name
       || authSession?.user?.user_metadata?.full_name
       || authEmail();
+  }
+
+  function mergeAuthUser(user) {
+    if (!user?.id || !authSession) return;
+
+    saveAuthSession({
+      ...authSession,
+      user: {
+        ...authSession.user,
+        ...user,
+        user_metadata: {
+          ...(authSession.user?.user_metadata || {}),
+          ...(user.user_metadata || {}),
+        },
+      },
+    });
   }
 
   function completeLogin(session) {
@@ -831,6 +855,24 @@
     }).join('');
   }
 
+  function renderViewTabs() {
+    const tabs = [
+      { view: 'dashboard', label: 'Dasbor' },
+      { view: 'habits', label: 'Kebiasaan' },
+      { view: 'account', label: 'Akun' },
+    ];
+
+    return `
+      <nav class="view-tabs" aria-label="Tab utama">
+        ${tabs.map((tab) => `
+          <button class="view-tab ${activeView === tab.view ? 'active' : ''}" type="button" data-view="${tab.view}">
+            ${tab.label}
+          </button>
+        `).join('')}
+      </nav>
+    `;
+  }
+
   function renderAuthScreen() {
     if (!dom.authScreen) return;
 
@@ -946,24 +988,49 @@
     document.body.classList.remove('auth-required');
     if (dom.authScreen) dom.authScreen.innerHTML = '';
 
+    if (activeView === 'habits') {
+      const current = currentTrackingDate();
+      activeYear = current.year;
+      activeMonth = current.monthIndex;
+      ensureYear(activeYear);
+    }
+
     renderYearOptions();
     renderMonthList();
     renderAuthPanel();
 
-    document.querySelectorAll('[data-view="dashboard"]').forEach((button) => {
-      button.classList.toggle('active', activeView === 'dashboard');
+    document.querySelectorAll('[data-view]').forEach((button) => {
+      button.classList.toggle('active', activeView === button.dataset.view);
     });
 
     if (activeView === 'dashboard') {
       dom.pageTitle.textContent = 'Dasbor';
       dom.pageSubtitle.textContent = `Ringkasan kebiasaan sepanjang ${activeYear}`;
-      dom.content.innerHTML = renderDashboard(activeYear);
+      dom.content.innerHTML = `${renderViewTabs()}${renderDashboard(activeYear)}`;
+      return;
+    }
+
+    if (activeView === 'habits') {
+      const current = currentTrackingDate();
+      activeYear = current.year;
+      activeMonth = current.monthIndex;
+      ensureYear(activeYear);
+      dom.pageTitle.textContent = 'Kebiasaan';
+      dom.pageSubtitle.textContent = `${MONTHS[activeMonth]} ${activeYear} berjalan`;
+      dom.content.innerHTML = `${renderViewTabs()}${renderHabitsTab(activeYear, activeMonth)}`;
+      return;
+    }
+
+    if (activeView === 'account') {
+      dom.pageTitle.textContent = 'Akun';
+      dom.pageSubtitle.textContent = 'Pengaturan profil dan keamanan';
+      dom.content.innerHTML = `${renderViewTabs()}${renderAccountTab()}`;
       return;
     }
 
     dom.pageTitle.textContent = `${MONTHS[activeMonth]} ${activeYear}`;
     dom.pageSubtitle.textContent = 'Lembar pelacak bulanan dan analitik';
-    dom.content.innerHTML = renderMonth(activeYear, activeMonth);
+    dom.content.innerHTML = `${renderViewTabs()}${renderMonth(activeYear, activeMonth)}`;
   }
 
   function renderDashboard(year) {
@@ -1086,17 +1153,17 @@
               <tbody>
                 ${yearStats.months.map((month) => `
                   <tr class="${month.monthIndex === activeMonth ? 'is-focus-month' : ''}">
-                    <td><strong>${month.monthName}</strong></td>
-                    <td>${month.totalHabits}</td>
-                    <td>
+                    <td data-label="Bulan"><strong>${month.monthName}</strong></td>
+                    <td data-label="Kebiasaan">${month.totalHabits}</td>
+                    <td data-label="Selesai">
                       <div class="inline-progress">
                         <span class="mini-bar" aria-hidden="true"><span style="width:${clamp(month.average, 0, 100)}%"></span></span>
                         <strong>${roundPercent(month.average)}%</strong>
                       </div>
                     </td>
-                    <td>${pointScore(month.average)}</td>
-                    <td>${month.checkedSlots} / ${month.totalSlots}</td>
-                    <td>
+                    <td data-label="Poin">${pointScore(month.average)}</td>
+                    <td data-label="Slot">${month.checkedSlots} / ${month.totalSlots}</td>
+                    <td data-label="Buka">
                       <button class="small-button" type="button" data-action="jump-month" data-month="${month.monthIndex}">Lihat</button>
                     </td>
                   </tr>
@@ -1255,6 +1322,106 @@
             </g>
           `).join('')}
         </svg>
+      </div>
+    `;
+  }
+
+  function renderHabitsTab(year, monthIndex) {
+    const monthData = ensureMonth(year, monthIndex);
+    const dailyRates = calculateDailyRates(monthData, year, monthIndex);
+    const focusDayIndex = focusedDayIndex(year, monthIndex);
+
+    return `
+      <div class="month-layout current-habits-view">
+        <section class="panel current-month-panel">
+          <div class="section-heading">
+            <div>
+              <span class="kicker">Bulan berjalan</span>
+              <h3>${MONTHS[monthIndex]} ${year}</h3>
+              <p>Tab ini hanya menampilkan kebiasaan untuk bulan yang sedang berjalan.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel control-panel">
+          <form id="habitForm" class="habit-form">
+            <label>
+              <span>Kategori</span>
+              <select name="category">
+                ${CATEGORY_ORDER.map((categoryKey) => (
+                  `<option value="${categoryKey}">${CATEGORY_CONFIG[categoryKey].label}</option>`
+                )).join('')}
+              </select>
+            </label>
+            <label class="habit-name-field">
+              <span>Nama kebiasaan</span>
+              <input name="name" type="text" maxlength="80" placeholder="Tambah kebiasaan baru" autocomplete="off" required />
+            </label>
+            <label class="habit-points-field">
+              <span>Poin</span>
+              <input name="points" type="number" min="1" max="100" step="1" placeholder="Auto" />
+            </label>
+            <button class="primary-button" type="submit">Tambah Kebiasaan</button>
+            <button class="danger-button" type="button" data-action="reset-month">Reset Centang</button>
+          </form>
+        </section>
+
+        ${renderHabitSection('daily', monthData, year, monthIndex, dailyRates, focusDayIndex)}
+        ${renderHabitSection('weekly', monthData, year, monthIndex, null, focusDayIndex)}
+        ${renderHabitSection('specificWeekly', monthData, year, monthIndex, null, focusDayIndex)}
+        ${renderHabitSection('monthly', monthData, year, monthIndex, null, focusDayIndex)}
+      </div>
+    `;
+  }
+
+  function renderAccountTab() {
+    return `
+      <div class="account-layout">
+        <section class="panel account-panel">
+          <div class="section-heading">
+            <div>
+              <h3>Profil Akun</h3>
+              <p>Ubah nama yang tampil di aplikasi.</p>
+            </div>
+          </div>
+          <form id="accountProfileForm" class="account-form">
+            <label>
+              <span>Username</span>
+              <input name="username" type="text" maxlength="40" value="${escapeHtml(authDisplayName())}" autocomplete="username" required />
+            </label>
+            <button class="primary-button" type="submit">Simpan Username</button>
+          </form>
+        </section>
+
+        <section class="panel account-panel">
+          <div class="section-heading">
+            <div>
+              <h3>Ganti Password</h3>
+              <p>Password baru minimal 6 karakter.</p>
+            </div>
+          </div>
+          <form id="accountPasswordForm" class="account-form">
+            <label>
+              <span>Password Baru</span>
+              <input name="password" type="password" minlength="6" autocomplete="new-password" required />
+            </label>
+            <label>
+              <span>Ulangi Password</span>
+              <input name="confirmPassword" type="password" minlength="6" autocomplete="new-password" required />
+            </label>
+            <button class="primary-button" type="submit">Ganti Password</button>
+          </form>
+        </section>
+
+        <section class="panel account-panel danger-zone">
+          <div class="section-heading">
+            <div>
+              <h3>Hapus Akun</h3>
+              <p>Menghapus data tracker dari perangkat dan Supabase lalu keluar dari aplikasi. Penghapusan identitas Auth penuh memerlukan admin Supabase.</p>
+            </div>
+          </div>
+          <button class="danger-button" type="button" data-action="delete-account-data">Hapus Akun</button>
+        </section>
       </div>
     `;
   }
@@ -1740,6 +1907,115 @@
     showToast('Kamu sudah keluar. Mode lokal aktif.');
   }
 
+  async function updateAccountProfile(form) {
+    const data = new FormData(form);
+    const username = String(data.get('username') || '').trim();
+    if (!username) {
+      showToast('Username tidak boleh kosong.');
+      return;
+    }
+
+    authIsBusy = true;
+    renderShell();
+
+    try {
+      const token = await getAccessToken();
+      const response = await authFetch('/auth/v1/user', {
+        method: 'PUT',
+        body: JSON.stringify({
+          data: {
+            username: username.slice(0, 40),
+            display_name: username.slice(0, 40),
+            full_name: username.slice(0, 40),
+          },
+        }),
+      }, token);
+
+      mergeAuthUser(response?.user || response);
+      showToast('Username akun diperbarui.');
+    } catch (error) {
+      console.warn(error);
+      showToast('Gagal memperbarui username.');
+    } finally {
+      authIsBusy = false;
+      renderShell();
+    }
+  }
+
+  async function changeAccountPassword(form) {
+    const data = new FormData(form);
+    const password = String(data.get('password') || '');
+    const confirmPassword = String(data.get('confirmPassword') || '');
+
+    if (password.length < 6) {
+      showToast('Password minimal 6 karakter.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      showToast('Konfirmasi password tidak sama.');
+      return;
+    }
+
+    authIsBusy = true;
+    renderShell();
+
+    try {
+      const token = await getAccessToken();
+      const response = await authFetch('/auth/v1/user', {
+        method: 'PUT',
+        body: JSON.stringify({ password }),
+      }, token);
+
+      mergeAuthUser(response?.user || response);
+      showToast('Password akun diperbarui.');
+    } catch (error) {
+      console.warn(error);
+      showToast('Gagal mengganti password.');
+    } finally {
+      authIsBusy = false;
+      renderShell();
+    }
+  }
+
+  async function deleteAccountData() {
+    const confirmed = confirm('Hapus data tracker akun ini dari perangkat dan Supabase, lalu keluar? Tindakan ini tidak bisa dibatalkan dari aplikasi.');
+    if (!confirmed) return;
+
+    authIsBusy = true;
+    renderShell();
+
+    try {
+      if (canSyncRemote()) {
+        const clientId = encodeURIComponent(getRemoteClientId());
+        await supabaseFetch(`/rest/v1/${encodeURIComponent(supabaseConfig.table)}?client_id=eq.${clientId}`, {
+          method: 'DELETE',
+        });
+      }
+    } catch (error) {
+      console.warn(error);
+    }
+
+    try {
+      const token = authSession?.access_token;
+      if (token) await authFetch('/auth/v1/logout', { method: 'POST' }, token);
+    } catch (error) {
+      console.warn(error);
+    }
+
+    clearAuthSession();
+    localStorage.removeItem(STORAGE_KEY);
+    state = createFreshState();
+    activeYear = runtimeYear;
+    activeView = 'dashboard';
+    activeMonth = new Date().getMonth();
+    ensureYear(activeYear);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    authIsBusy = false;
+    renderShell();
+    showToast('Data tracker akun dihapus dari aplikasi.');
+  }
+
   function renameHabit(categoryKey, habitId) {
     const habit = findHabit(categoryKey, habitId);
     if (!habit) return;
@@ -1891,9 +2167,16 @@
     });
 
     document.addEventListener('click', (event) => {
-      const dashboardButton = event.target.closest('[data-view="dashboard"]');
-      if (dashboardButton) {
-        activeView = 'dashboard';
+      const viewButton = event.target.closest('[data-view]');
+      if (viewButton) {
+        activeView = viewButton.dataset.view;
+        if (activeView === 'habits') {
+          const current = currentTrackingDate();
+          activeYear = current.year;
+          activeMonth = current.monthIndex;
+          mobileDailyExpanded = false;
+          mobileOpenSections = new Set(['daily']);
+        }
         saveState();
         renderShell();
         closeSidebar();
@@ -1936,12 +2219,14 @@
       if (action === 'toggle-active') toggleActive(category, habitId);
       if (action === 'delete-habit') deleteHabit(category, habitId);
       if (action === 'reset-month') resetMonthChecks();
+      if (action === 'delete-account-data') deleteAccountData();
     });
 
     dom.content.addEventListener('submit', (event) => {
-      if (event.target.id !== 'habitForm') return;
       event.preventDefault();
-      addHabit(event.target);
+      if (event.target.id === 'habitForm') addHabit(event.target);
+      if (event.target.id === 'accountProfileForm') updateAccountProfile(event.target);
+      if (event.target.id === 'accountPasswordForm') changeAccountPassword(event.target);
     });
 
     dom.content.addEventListener('change', (event) => {

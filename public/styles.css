@@ -1080,6 +1080,33 @@ svg {
   grid-column: 1 / -1;
 }
 
+.view-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: 0 8px 22px rgba(35, 52, 78, 0.06);
+}
+
+.view-tab {
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.view-tab.active {
+  border-color: color-mix(in srgb, var(--teal) 32%, var(--line));
+  background: color-mix(in srgb, var(--teal) 10%, var(--panel));
+  color: var(--teal);
+}
+
 .metric-card,
 .panel {
   border: 1px solid var(--line);
@@ -1474,6 +1501,55 @@ svg {
 
 .control-panel {
   padding: 14px;
+}
+
+.current-month-panel {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--teal) 10%, transparent), transparent 55%),
+    var(--panel);
+}
+
+.account-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.account-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.account-form {
+  display: grid;
+  gap: 10px;
+}
+
+.account-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.account-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--text);
+  outline: none;
+}
+
+.account-form input:focus {
+  border-color: var(--teal);
+  box-shadow: var(--focus);
+}
+
+.danger-zone {
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--line));
 }
 
 .habit-form {
@@ -2349,53 +2425,85 @@ svg {
 
   .summary-table {
     min-width: 0;
-    table-layout: fixed;
+    display: block;
   }
 
-  .summary-table th,
+  .summary-table thead {
+    display: none;
+  }
+
+  .summary-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .summary-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 52px 76px 38px;
+    gap: 7px 10px;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+  }
+
+  .summary-table tbody tr.is-focus-month {
+    border-color: color-mix(in srgb, var(--teal) 34%, var(--line));
+    background: color-mix(in srgb, var(--teal) 8%, var(--panel));
+  }
+
   .summary-table td {
-    padding: 9px 6px;
-    font-size: 0.72rem;
+    display: grid;
+    gap: 1px;
+    padding: 0;
+    border-bottom: 0;
+    font-size: 0.78rem;
     overflow-wrap: anywhere;
   }
 
-  .summary-table th {
+  .summary-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
     font-size: 0.58rem;
-    letter-spacing: 0.03em;
+    font-weight: 950;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
 
-  .summary-table th:nth-child(1),
   .summary-table td:nth-child(1) {
-    width: 30%;
+    grid-column: 1 / 4;
+    grid-row: 1;
   }
 
-  .summary-table th:nth-child(2),
-  .summary-table td:nth-child(2) {
-    width: 18%;
-    text-align: center;
-  }
-
-  .summary-table th:nth-child(3),
   .summary-table td:nth-child(3) {
-    width: 24%;
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 
-  .summary-table th:nth-child(4),
-  .summary-table td:nth-child(4) {
-    width: 18%;
-    text-align: center;
-  }
-
-  .summary-table th:nth-child(5),
+  .summary-table td:nth-child(2),
+  .summary-table td:nth-child(4),
   .summary-table td:nth-child(5) {
-    width: 10%;
-    padding-inline: 2px;
-    text-align: center;
+    grid-row: 3;
+  }
+
+  .summary-table td:nth-child(1)::before,
+  .summary-table td:nth-child(6)::before {
+    display: none;
+  }
+
+  .summary-table td:nth-child(1) strong {
+    font-size: 0.92rem;
+  }
+
+  .summary-table td:nth-child(6) {
+    grid-column: 4;
+    grid-row: 1;
   }
 
   .summary-table .small-button {
-    min-height: 30px;
-    width: 30px;
+    width: 34px;
+    min-height: 34px;
     padding: 0;
     overflow: hidden;
     color: transparent;
@@ -2405,12 +2513,12 @@ svg {
   .summary-table .small-button::before {
     content: ">";
     color: var(--text);
-    font-size: 0.82rem;
+    font-size: 0.9rem;
   }
 
   .inline-progress {
-    grid-template-columns: 1fr;
-    gap: 4px;
+    grid-template-columns: minmax(0, 1fr) 54px;
+    gap: 5px;
     max-width: none;
   }
 
