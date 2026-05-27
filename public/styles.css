@@ -1076,6 +1076,10 @@ svg {
   gap: 14px;
 }
 
+.metric-grid > .metric-card:only-child {
+  grid-column: 1 / -1;
+}
+
 .metric-card,
 .panel {
   border: 1px solid var(--line);
@@ -2164,32 +2168,48 @@ svg {
   }
 
   .point-calendar {
-    gap: 5px;
+    gap: 4px;
   }
 
   .point-weekday {
-    min-height: 24px;
-    font-size: 0.62rem;
+    min-height: 22px;
+    font-size: 0.58rem;
   }
 
   .point-day,
   .point-day.is-empty {
-    min-height: 74px;
-    padding: 6px;
+    min-height: 50px;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
   }
 
   .point-day span {
-    width: 22px;
-    height: 22px;
-    font-size: 0.68rem;
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    width: auto;
+    height: auto;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.56rem;
+    line-height: 1;
   }
 
   .point-day strong {
-    font-size: 0.84rem;
+    margin-top: 7px;
+    font-size: 0.88rem;
   }
 
   .point-day small {
-    font-size: 0.62rem;
+    display: none;
+  }
+
+  .point-day.is-empty {
+    border-color: transparent;
+    background: transparent;
   }
 
   .point-day em {
