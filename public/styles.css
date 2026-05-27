@@ -1080,33 +1080,6 @@ svg {
   grid-column: 1 / -1;
 }
 
-.view-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
-  box-shadow: 0 8px 22px rgba(35, 52, 78, 0.06);
-}
-
-.view-tab {
-  min-height: 40px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 0.86rem;
-  font-weight: 900;
-}
-
-.view-tab.active {
-  border-color: color-mix(in srgb, var(--teal) 32%, var(--line));
-  background: color-mix(in srgb, var(--teal) 10%, var(--panel));
-  color: var(--teal);
-}
-
 .metric-card,
 .panel {
   border: 1px solid var(--line);

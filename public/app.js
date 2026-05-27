@@ -855,24 +855,6 @@
     }).join('');
   }
 
-  function renderViewTabs() {
-    const tabs = [
-      { view: 'dashboard', label: 'Dasbor' },
-      { view: 'habits', label: 'Kebiasaan' },
-      { view: 'account', label: 'Akun' },
-    ];
-
-    return `
-      <nav class="view-tabs" aria-label="Tab utama">
-        ${tabs.map((tab) => `
-          <button class="view-tab ${activeView === tab.view ? 'active' : ''}" type="button" data-view="${tab.view}">
-            ${tab.label}
-          </button>
-        `).join('')}
-      </nav>
-    `;
-  }
-
   function renderAuthScreen() {
     if (!dom.authScreen) return;
 
@@ -1006,7 +988,7 @@
     if (activeView === 'dashboard') {
       dom.pageTitle.textContent = 'Dasbor';
       dom.pageSubtitle.textContent = `Ringkasan kebiasaan sepanjang ${activeYear}`;
-      dom.content.innerHTML = `${renderViewTabs()}${renderDashboard(activeYear)}`;
+      dom.content.innerHTML = renderDashboard(activeYear);
       return;
     }
 
@@ -1017,20 +999,20 @@
       ensureYear(activeYear);
       dom.pageTitle.textContent = 'Kebiasaan';
       dom.pageSubtitle.textContent = `${MONTHS[activeMonth]} ${activeYear} berjalan`;
-      dom.content.innerHTML = `${renderViewTabs()}${renderHabitsTab(activeYear, activeMonth)}`;
+      dom.content.innerHTML = renderHabitsTab(activeYear, activeMonth);
       return;
     }
 
     if (activeView === 'account') {
       dom.pageTitle.textContent = 'Akun';
       dom.pageSubtitle.textContent = 'Pengaturan profil dan keamanan';
-      dom.content.innerHTML = `${renderViewTabs()}${renderAccountTab()}`;
+      dom.content.innerHTML = renderAccountTab();
       return;
     }
 
     dom.pageTitle.textContent = `${MONTHS[activeMonth]} ${activeYear}`;
     dom.pageSubtitle.textContent = 'Lembar pelacak bulanan dan analitik';
-    dom.content.innerHTML = `${renderViewTabs()}${renderMonth(activeYear, activeMonth)}`;
+    dom.content.innerHTML = renderMonth(activeYear, activeMonth);
   }
 
   function renderDashboard(year) {
